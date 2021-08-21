@@ -74,7 +74,7 @@ def dim_checks(sampling_factor, n_rows, n_cols):
     assert n_rows >= n_cols
     d = int(sampling_factor * n_cols)
     if d > n_rows:
-        msg = """
+        msg = f"""
         The embedding dimension "d" should not be larger than the 
         number of rows of the data matrix. Here, an embedding dimension
         of d={d} has been requested for a matrix with only {n_rows} rows.
@@ -177,8 +177,7 @@ class SAP1(OverLstsqSolver):
 
     def exec(self, A, b, tol, iter_lim, rng):
         n_rows, n_cols = A.shape
-        d = int(self.sampling_factor * n_cols)
-        assert d < n_rows
+        d = dim_checks(self.sampling_factor, n_rows, n_cols)
         if not np.isnan(tol):
             assert tol >= 0
             assert tol < np.inf

@@ -6,10 +6,14 @@ import rlapy.utils.linalg_wrappers as law
 
 
 def orthonormal_operator(n_rows, n_cols, rng):
-    rng = np.random.default_rng(rng)
-    Q = rng.standard_normal(size=(n_rows, n_cols))
-    Q = law.orth(Q)
-    return Q
+    if n_rows < n_cols:
+        rng = np.random.default_rng(rng)
+        return orthonormal_operator(n_cols, n_rows, rng).T
+    else:
+        rng = np.random.default_rng(rng)
+        Q = gaussian_operator(n_rows, n_cols, rng)
+        Q = law.orth(Q)
+        return Q
 
 
 def gaussian_operator(n_rows, n_cols, rng, normalize=True):
