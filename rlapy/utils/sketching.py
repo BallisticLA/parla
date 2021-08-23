@@ -2,17 +2,16 @@ import numpy as np
 import scipy.sparse as spar
 from scipy.fft import dct
 import scipy.sparse.linalg as sparla
-import rlapy.utils.linalg_wrappers as law
+import rlapy.utils.linalg_wrappers as ulaw
 
 
 def orthonormal_operator(n_rows, n_cols, rng):
     if n_rows < n_cols:
-        rng = np.random.default_rng(rng)
         return orthonormal_operator(n_cols, n_rows, rng).T
     else:
         rng = np.random.default_rng(rng)
         Q = gaussian_operator(n_rows, n_cols, rng)
-        Q = law.orth(Q)
+        Q = ulaw.orth(Q)
         return Q
 
 
