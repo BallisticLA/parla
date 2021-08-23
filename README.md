@@ -1,2 +1,2 @@
 # rlapy
-Prototype for describing the mathematical structure of a C++ RandLAPACK
+Prototyping the mathematical structure of a C++ library for randomized numerical linear algebra.
