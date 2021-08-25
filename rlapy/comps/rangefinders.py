@@ -63,7 +63,7 @@ def power_rangefinder(A, k, num_pass, rng):
     """
     rng = np.random.default_rng(rng)
     rso_ = RS1(sketch_op_gen=gaussian_operator,
-               num_pass=num_pass,
+               num_pass=num_pass - 1,
                stabilizer=ulaw.orth,
                passes_per_stab=1)
     rf_ = RF1(rso_)
