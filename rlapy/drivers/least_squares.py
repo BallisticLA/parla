@@ -13,7 +13,7 @@ import rlapy.comps.deterministic as de
 class OverLstsqSolver:
     """Solver for overdetermined ordinary least-squares."""
 
-    def exec(self, A, b, tol, iter_lim, rng):
+    def __call__(self, A, b, tol, iter_lim, rng):
         """
         Return an approximate solution to
             min{ ||A x - b||_2 : x in R^n }.
@@ -63,7 +63,7 @@ class OverLstsqSolver:
         Notes
         -----
         Implementations are allowed to store problem-dependent metadata
-        (such as the random sketch of A) after a call to self.exec(...).
+        (such as the random sketch of A) after a call to self.__call__(...).
         Any information other than the return value "x_star" must be recorded
         as metadata.
         """
@@ -109,7 +109,7 @@ class SAS1(OverLstsqSolver):
         self.lapack_driver = lapack_driver
         self.overwrite_sketch = overwrite_sketch
 
-    def exec(self, A, b, tol, iter_lim, rng):
+    def __call__(self, A, b, tol, iter_lim, rng):
         if not np.isnan(tol):
             msg = """
             This OverLstsqSolver implementation cannot directly control
@@ -175,7 +175,7 @@ class SAP1(OverLstsqSolver):
         self.sketch_op_gen = sketch_op_gen
         self.sampling_factor = sampling_factor
 
-    def exec(self, A, b, tol, iter_lim, rng):
+    def __call__(self, A, b, tol, iter_lim, rng):
         n_rows, n_cols = A.shape
         d = dim_checks(self.sampling_factor, n_rows, n_cols)
         if not np.isnan(tol):
@@ -225,7 +225,7 @@ class SAP2(OverLstsqSolver):
         self.sampling_factor = sampling_factor
         self.smart_init = smart_init
 
-    def exec(self, A, b, tol, iter_lim, rng):
+    def __call__(self, A, b, tol, iter_lim, rng):
         n_rows, n_cols = A.shape
         d = dim_checks(self.sampling_factor, n_rows, n_cols)
         if not np.isnan(tol):

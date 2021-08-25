@@ -67,7 +67,7 @@ def power_rangefinder(A, k, num_pass, rng):
                stabilizer=ulaw.orth,
                passes_per_stab=1)
     rf_ = RF1(rso_)
-    Q = rf_.exec(A, k, 0.0, rng)
+    Q = rf_(A, k, 0.0, rng)
     return Q
 
 ###############################################################################
@@ -77,7 +77,7 @@ def power_rangefinder(A, k, num_pass, rng):
 
 class RangeFinder:
 
-    def exec(self, A, k, tol, rng):
+    def __call__(self, A, k, tol, rng):
         """
         Return a matrix Q with orthonormal columns, where range(Q) is
         "reasonably" well aligned with A's leading left singular vectors.
@@ -128,7 +128,7 @@ class RF1(RangeFinder):
     def __init__(self, rso: RowSketcher):
         self.rso = rso
 
-    def exec(self, A, k, tol, rng):
+    def __call__(self, A, k, tol, rng):
         """
         Return a matrix Q with k orthonormal columns, where Range(Q) is
         an approximation for the span of A's top k left singular vectors.
@@ -182,7 +182,7 @@ class RF1(RangeFinder):
             """
             warnings.warn(msg)
         rng = np.random.default_rng(rng)
-        S = self.rso.exec(A, k, rng)
+        S = self.rso(A, k, rng)
         Y = A @ S
         Q = la.qr(Y, mode='economic')[0]
         return Q

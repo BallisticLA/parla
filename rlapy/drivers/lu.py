@@ -8,7 +8,7 @@ from rlapy.comps.sketchers import RowSketcher
 
 class LUDecomposer:
 
-    def exec(self, A, k, tol, over, rng):
+    def __call__(self, A, k, tol, over, rng):
         """
         Let A be m-by-n. For some integer ell <= k, return
             Pl: an m-by-m permutation matrix,
@@ -66,7 +66,7 @@ class LU1(LUDecomposer):
     def __init__(self, qb: QBFactorizer):
         self.qb = qb
 
-    def exec(self, A, k, tol, over, rng):
+    def __call__(self, A, k, tol, over, rng):
         """
         TODO: describe algorithm and document parameters. Comment
          that there's a very long note about how the parameter "over"
@@ -103,7 +103,7 @@ class LU1(LUDecomposer):
         assert k <= min(A.shape)
         assert tol < np.inf
         rng = np.random.default_rng(rng)
-        Q, B = self.qb.exec(A, k + over, tol, rng)
+        Q, B = self.qb(A, k + over, tol, rng)
         # ^ We have A \approx Q B
         P1, L1, U1 = la.lu(B.T)
         # ^ We have B = U1.T @ L1.T @ P1.T
@@ -126,7 +126,7 @@ class LU2(LUDecomposer):
         self.sk_op = sk_op
         self.lstsq = lstsq
 
-    def exec(self, A, k, tol, over, rng):
+    def __call__(self, A, k, tol, over, rng):
         #TODO: describe algorithm and document parameters.
         #   Explain that this algorithm has no control over tol.
         assert k > 0
@@ -139,7 +139,7 @@ class LU2(LUDecomposer):
             """
             warnings.warn(msg)
         rng = np.random.default_rng(rng)
-        S = self.sk_op.exec(A, k + over, rng)
+        S = self.sk_op(A, k + over, rng)
         Y = A @ S
         Ly, Uy, Py = ulaw.lupt(Y)  # Y @ Py = Ly @ Uy
         if over > 0:

@@ -23,7 +23,7 @@ def powered_range_sketch_op(num_pass, A, k, rng):
     S = RS1(sketch_op_gen=usk.gaussian_operator,
             num_pass=num_pass,
             stabilizer=ulaw.orth,
-            passes_per_stab=1).exec(A, k, rng)
+            passes_per_stab=1)(A, k, rng)
     return S
 
 
@@ -35,7 +35,7 @@ class RowSketcher:
     the rows of A.
     """
 
-    def exec(self, A, k, rng):
+    def __call__(self, A, k, rng):
         """
         Return a matrix S where range(S) is "reasonably" well aligned with
         the span of the top k right singular vectors of A.
@@ -118,7 +118,7 @@ class RS1(RowSketcher):
         self.stabilizer = stabilizer
         self.passes_per_stab = passes_per_stab
 
-    def exec(self, A, k, rng):
+    def __call__(self, A, k, rng):
         """
         Return a matrix S where range(S) is "reasonably" well aligned with
         the span of the top k right singular vectors of A.

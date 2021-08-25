@@ -5,7 +5,7 @@ from rlapy.comps.qb import QBFactorizer
 
 class SVDecomposer:
 
-    def exec(self, A, k, tol, over, rng):
+    def __call__(self, A, k, tol, over, rng):
         """
         Return U, s, Vh where, for some integer ell <= k,
             U is A.shape[0]-by-ell,
@@ -63,7 +63,7 @@ class SVD1(SVDecomposer):
         Parameters
         ----------
         qb : QBFactorizer
-            qb.exec(A, ell, tol, rng) returns a QB factorization of A with
+            qb(A, ell, tol, rng) returns a QB factorization of A with
             target rank "ell", target tolerance "tol", using the numpy
             Generator object np.random.default_rng(rng).
 
@@ -86,9 +86,9 @@ class SVD1(SVDecomposer):
         """
         self.qb = qb
 
-    def exec(self, A, k, tol, over, rng):
+    def __call__(self, A, k, tol, over, rng):
         rng = np.random.default_rng(rng)
-        Q, B = self.qb.exec(A, k + over, tol, rng)
+        Q, B = self.qb(A, k + over, tol, rng)
         U, s, Vh = la.svd(B, full_matrices=False)
         if over > 0:
             cutoff = min(k, s.size)

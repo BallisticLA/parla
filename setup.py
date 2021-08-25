@@ -24,5 +24,6 @@ setuptools.setup(
     install_requires=["numpy >= 1.17",
                       "scipy >= 1.1",
                       "matplotlib",
-                      "pytest"]
+                      "pytest",
+                      "pandas"]
 )

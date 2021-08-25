@@ -47,7 +47,7 @@ class TestPRSO1(unittest.TestCase):
         the largest eigenpair of a Gram matrix M = (A.T @ A).
 
         The number of steps of the power method is determined by ps.num_pass.
-        Calling vec = ps.exec(A, 1, rng) returns a vector that's (essentially)
+        Calling vec = ps(A, 1, rng) returns a vector that's (essentially)
         the output of the power method on (A.T @ A) with ps.num_pass/2 steps.
         """
         rng = np.random.default_rng(0)
@@ -72,7 +72,7 @@ class TestPRSO1(unittest.TestCase):
                 for i, num_pass in enumerate(passes):
                     rng = np.random.default_rng(1)
                     ps.num_pass = num_pass
-                    vec = ps.exec(A, 1, rng)
+                    vec = ps(A, 1, rng)
                     vec /= np.linalg.norm(vec, ord=2)
                     ATAvec = A.T @ (A @ vec)
                     eigval_gaps[i] = 1 - np.linalg.norm(ATAvec, ord=2)

@@ -76,7 +76,7 @@ def qb(num_passes, A, k, rng):
     rso_ = RS1(gaussian_operator, num_passes - 2, ulaw.orth, 1)
     rf_ = RF1(rso_)
     qb_ = QB1(rf_)
-    Q, B = qb_.exec(A, k, 0, rng)
+    Q, B = qb_(A, k, 0, rng)
     return Q, B
 
 
@@ -153,15 +153,15 @@ def qb_b_fet(inner_num_pass, blk, overwrite_A, A, k, tol, rng):
 
         (2) We have to explicitly update A.
 
-    Straightforward changes to the implementation of QB2.exec(...) would remove
-    the second of these differences. Refer to QB2.exec(...) for more
+    Straightforward changes to the implementation of QB2.__call__(...) would remove
+    the second of these differences. Refer to QB2.__call__(...) for more
     information.
     """
     rng = np.random.default_rng(rng)
     rso_ = RS1(gaussian_operator, inner_num_pass - 2, ulaw.orth, 1)
     rf_ = RF1(rso_)
     qb_ = QB2(rf_, blk, overwrite_A)
-    Q, B = qb_.exec(A, k, tol, rng)
+    Q, B = qb_(A, k, tol, rng)
     return Q, B
 
 
@@ -228,7 +228,7 @@ def qb_b_pe(num_passes, blk, A, k, tol, rng):
     """
     rng = np.random.default_rng(rng)
     sk_op = RS1(gaussian_operator, num_passes, ulaw.orth, 1)
-    Q, B = QB3(sk_op, blk).exec(A, k, tol, rng)
+    Q, B = QB3(sk_op, blk)(A, k, tol, rng)
     return Q, B
 
 
@@ -240,7 +240,7 @@ class QBFactorizer:
 
     TOL_CONTROL = 'none'
 
-    def exec(self, A, k, tol, rng):
+    def __call__(self, A, k, tol, rng):
         """
         Return a matrix Q with orthonormal columns and a matrix B where
         the product Q B stands in as an approximation of A.
@@ -294,14 +294,14 @@ class QB1(QBFactorizer):
         Parameters
         ----------
         rf : RangeFinder
-            Q = rf.exec(A, k, tol, rng) has orthonormal columns. Its range
+            Q = rf(A, k, tol, rng) has orthonormal columns. Its range
             is supposed to approximate the space spanned by the leading left
             singular vectors of A. The implementation constructed Q with
             target rank "k" and target tolerance "tol".
         """
         self.rangefinder = rf
 
-    def exec(self, A, k, tol, rng):
+    def __call__(self, A, k, tol, rng):
         """
         Rely on a rangefinder to obtain the matrix Q for the decomposition
         A \approx Q B. Once we have Q, we construct B = Q.T @ A and return
@@ -343,19 +343,19 @@ class QB1(QBFactorizer):
         assert tol >= 0
         assert tol < np.inf
         rng = np.random.default_rng(rng)
-        Q = self.rangefinder.exec(A, k, tol, rng)
+        Q = self.rangefinder(A, k, tol, rng)
         B = Q.T @ A
         return Q, B
 
 
 class QB2(QBFactorizer):
     """
-    Common uses
+    Common uses of a QB2 object "qb_alg"
 
-        QB2.exec(A, min(A.shape), tol, rng) will return
+        qb_alg(A, min(A.shape), tol, rng) will return
         an approximation (Q, B) where ||A - Q B || <= tol.
 
-        QB2.exec(A, k, 0, rng) will return (Q, B)
+        qb_alg(A, k, 0, rng) will return (Q, B)
         where Q has k columns.
     """
 
@@ -366,7 +366,7 @@ class QB2(QBFactorizer):
         self.blk = blk
         self.overwrite_a = overwrite_a
 
-    def exec(self, A, k, tol, rng):
+    def __call__(self, A, k, tol, rng):
         """
         Build a QB factorization by iteratively adding columns to Q
         and rows to B. The algorithm modifies A in-place. If
@@ -452,7 +452,7 @@ class QB2(QBFactorizer):
                 blk = k - B.shape[0]  # final block
             # Standard QB, but step in to make extra sure that
             #   the columns of "Qi" are orthogonal to cols of current "Q".
-            Qi = self.rangefinder.exec(A, blk, np.NaN, rng)
+            Qi = self.rangefinder(A, blk, np.NaN, rng)
             Qi = project_out(Qi, Q, as_list=False)
             Qi = la.qr(Qi, mode='economic')[0]
             Bi = Qi.T @ A
@@ -476,7 +476,7 @@ class QB3(QBFactorizer):
         self.sk_op = sk_op
         self.blk = blk
 
-    def exec(self, A, k, tol, rng):
+    def __call__(self, A, k, tol, rng):
         """
         Build a QB factorization of A by constructing a suitable sketching
         operator S with S.shape = (A.shape[1], k) and then constructing
@@ -533,10 +533,10 @@ class QB3(QBFactorizer):
 
         This implementation generalizes [YGL:2018, Algorithm 4] by being
         agnostic to how S is formed. We obtain it by calling S =
-        self.sk_op.exec(A, k, rng), where self.sk_op is a RowSketcher.
+        self.sk_op(A, k, rng), where self.sk_op is a RowSketcher.
 
         Subspace iteration can be used to implement a RowSketcher's
-        "exec" function, but that is not the only possible implementation.
+        "__call__" function, but that is not the only possible implementation.
         Refer the the RowSketcher interface for more information.
         """
         assert k > 0
@@ -551,7 +551,7 @@ class QB3(QBFactorizer):
             sq_tol = tol**2
         rng = np.random.default_rng(rng)
         blk = self.blk
-        S = self.sk_op.exec(A, k, rng)
+        S = self.sk_op(A, k, rng)
         if not isinstance(S, np.ndarray):
             msg = """
             This implementation requires the sketching routine to return a 
