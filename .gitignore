@@ -1,5 +1,6 @@
 .idea/*
 *.ipynb_checkpoints/*
+ignore_scripts/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

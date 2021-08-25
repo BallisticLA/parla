@@ -452,7 +452,7 @@ class QB2(QBFactorizer):
                 blk = k - B.shape[0]  # final block
             # Standard QB, but step in to make extra sure that
             #   the columns of "Qi" are orthogonal to cols of current "Q".
-            Qi = self.rangefinder.exec(A, blk, 0.0, rng)
+            Qi = self.rangefinder.exec(A, blk, np.NaN, rng)
             Qi = project_out(Qi, Q, as_list=False)
             Qi = la.qr(Qi, mode='economic')[0]
             Bi = Qi.T @ A
@@ -572,7 +572,7 @@ class QB3(QBFactorizer):
             Qi, Rihat = la.qr(Qi, mode='economic')
             Ri = Rihat @ Ri
             Bi = H[:, blk_start:blk_end].T - (Yi.T @ Q) @ B - BSi.T @ B
-            la.solve_triangular(Ri, Bi, trans='T', overwrite_b=True)
+            Bi = la.solve_triangular(Ri, Bi, trans='T', overwrite_b=True)
             Q = np.column_stack((Q, Qi))
             B = np.row_stack((B, Bi))
             if tol > 0:

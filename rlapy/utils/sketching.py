@@ -1,8 +1,8 @@
 import numpy as np
+import scipy.linalg as la
 import scipy.sparse as spar
 from scipy.fft import dct
 import scipy.sparse.linalg as sparla
-import rlapy.utils.linalg_wrappers as ulaw
 
 
 def orthonormal_operator(n_rows, n_cols, rng):
@@ -11,7 +11,8 @@ def orthonormal_operator(n_rows, n_cols, rng):
     else:
         rng = np.random.default_rng(rng)
         Q = gaussian_operator(n_rows, n_cols, rng)
-        Q = ulaw.orth(Q)
+        Q, R = la.qr(Q, overwrite_a=True, pivoting=False, mode='economic')
+        Q = Q * np.sign(np.diag(R))
         return Q
 
 
