@@ -14,5 +14,5 @@ def lu_stabilize(S):
 
 def lupt(M):
     """Factor M = L @ U @ P.T. Equivalently, M @ P = L @ U."""
-    P, L, U = la.lu(M)
+    P, L, U = la.lu(M.T)
     return U.T, L.T, P

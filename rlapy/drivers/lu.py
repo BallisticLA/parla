@@ -82,22 +82,19 @@ class LU1(LUDecomposer):
         k columns from Q after a QB decomposition. (ZM2020 doesn't use
         QB as an explicit subroutine, but their algorithm essentially
         starts with a QB step based on a rangefinder, which in turn is
-        based on subspace iteration.) That truncation method doesn't
-        make sense, because the approximation A \approx QB is invariant
+        based on subspace iteration.) Such a truncation method seems strange
+        to me (Riley) because the approximation A \approx QB is invariant
         under permutations that act simultaneously on the columns of Q and
         the rows of B. So for the truncation approach in ZM2020 to have
-        theoretical justification we need to make detailed assumptions on
-        how Q is computed.
+        theoretical justifications, I think we would need to make detailed
+        assumptions on how Q is computed.
 
-        Rather than state those assumptions and hope the user
-        provides a QB function that meets those assumptions,
-        we borrow from SSAA2018 (which presents some randomized LU
-        algorithms) and truncate the output of the first LU
-        factorization. In the context of SSAA2018, this truncation
-        strategy required the first LU factorization to be rank revealing.
-        We don't use RRLU. Moreover, we have not established any
-        theoretical justification for this truncation strategy in the
-        larger context of this algorithm.
+        Our truncation approach is based on randomized LU algorithms in
+        SSAA2018, which truncate the output of the first LU factorization.
+        In the context of SSAA2018, this truncation strategy required the
+        first LU factorization to be rank revealing. We don't use RRLU.
+        Moreover, we have not established any theoretical justification for
+        this truncation strategy in the larger context of this algorithm.
         """
         assert k > 0
         assert k <= min(A.shape)
@@ -105,18 +102,22 @@ class LU1(LUDecomposer):
         rng = np.random.default_rng(rng)
         Q, B = self.qb(A, k + over, tol, rng)
         # ^ We have A \approx Q B
-        P1, L1, U1 = la.lu(B.T)
-        # ^ We have B = U1.T @ L1.T @ P1.T
+        #   Note: the orthogonality of Q isn't used
+        L1, U1, P1 = ulaw.lupt(B)  # B = L1 @ U1 @ P1.T
         cutoff = min(k, U1.shape[0])
-        U1 = U1[:cutoff, :]  # drop rows
-        L1 = L1[:, :cutoff]  # drop columns
-        Y = Q @ U1.T
+        U1 = U1[:cutoff, :]
+        L1 = L1[:, :cutoff]
+        Y = Q @ L1
         P2, L2, U2 = la.lu(Y)
-        # ^ We have Q B = P2 @ L2 @ (U2 @ L1.T) @ P1.T when over=0.
+        # When over = 0, we have ...
+        #   Q B = Q (L1 U1 P1')
+        #       = (Q L1) (U1 P1')
+        #       = (P2 L2 U2) (U1 P1')
+        #       = P2 L2 (U2 U1) (P1')
         Pl = P2
-        Pu = P1.T
         L = L2
-        U = U2 @ L1.T
+        U = U2 @ U1
+        Pu = P1.T
         return Pl, L, U, Pu
 
 
@@ -127,6 +128,9 @@ class LU2(LUDecomposer):
         self.lstsq = lstsq
 
     def __call__(self, A, k, tol, over, rng):
+        """
+        This is inspired by [SSAA:2018, Alg 4.1].
+        """
         #TODO: describe algorithm and document parameters.
         #   Explain that this algorithm has no control over tol.
         assert k > 0
@@ -150,7 +154,7 @@ class LU2(LUDecomposer):
         # ^ TODO: use the fact that Ly is lower-triangular. The best
         #    way to compute the pseudo-inverse might not involve least
         #    squares.
-        Lz, Uz, Pz = ulaw.lupt(Z)  # X @ Px = Lx @ Ux
+        Lz, Uz, Pz = ulaw.lupt(Z)  # Z @ Pz = Lz @ Uz
         L = Ly @ Lz
         U = Uz
         # ^ Py @ A @ Pz \approx L @ U
