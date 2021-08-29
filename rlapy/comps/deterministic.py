@@ -8,22 +8,35 @@ import scipy.sparse.linalg as sparla
 import numpy as np
 
 
-def a_times_inv_r(A, R):
+def a_times_inv_r(A, R, k=1):
     """Return a linear operator that represents A @ inv(R) """
 
-    work = np.zeros(A.shape[1])
+    vec_work = np.zeros(A.shape[1])
 
-    def mv(vec):
-        np.copyto(work, vec)
+    def forward(arg, work):
+        np.copyto(work, arg)
         solve_triangular(R, work, lower=False, check_finite=False,
                          overwrite_b=True)
         return A @ work
 
-    def rmv(vec):
-        np.dot(A.T, vec, out=work)
+    def adjoint(arg, work):
+        np.dot(A.T, arg, out=work)
         return solve_triangular(R, work, 'T', lower=False, check_finite=False)
 
-    A_precond = sparla.LinearOperator(shape=A.shape, matvec=mv, rmatvec=rmv)
+    mv = lambda vec: forward(vec, vec_work)
+    rmv = lambda vec: adjoint(vec, vec_work)
+
+    if k == 1:
+        A_precond = sparla.LinearOperator(shape=A.shape,
+                                          matvec=mv, rmatvec=rmv)
+    else:
+        #TODO: write tests for this case
+        mat_work = np.zeros(A.shape[1], k)
+        mm = lambda mat: forward(mat, mat_work)
+        rmm = lambda mat: adjoint(mat, mat_work)
+        A_precond = sparla.LinearOperator(shape=A.shape,
+                                          matvec=mv, rmatvec=rmv,
+                                          matmat=mm, rmatmat=rmm)
     return A_precond
 
 
@@ -61,7 +74,6 @@ def upper_tri_precond_lsqr(A, b, R, tol, iter_lim, x0=None):
     else:
         result = sparla.lsqr(A_precond, b, atol=tol, btol=tol,
                              iter_lim=iter_lim)
-    raw_result = result[0].copy()
     solve_triangular(R, result[0], lower=False, overwrite_b=True)
     return result
 
@@ -69,15 +81,15 @@ def upper_tri_precond_lsqr(A, b, R, tol, iter_lim, x0=None):
 def pinv_precond_lsqr(A, b, N, tol, iter_lim):
     """
     Run preconditioned LSQR to obtain an approximate solution to
-        min{ || A @ x - b ||_2 : x in R^m }
-    where A.shape = (n, m) has n >> m, so the problem is over-determined.
+        min{ || A @ x - b ||_2 : x in R^n }
+    where A.shape = (m, n) has m >> n, so the problem is over-determined.
 
     Parameters
     ----------
     A : ndarray
-        Data matrix with n rows and m columns.
+        Data matrix with m rows and n columns.
     b : ndarray
-        Right-hand-side b.shape = (n,).
+        Right-hand-side b.shape = (m,) or b.shape = (m, k).
     N : ndarray
         The condition number of A @ N should be near one and its rank should be
         the same as that of A.
@@ -90,7 +102,8 @@ def pinv_precond_lsqr(A, b, N, tol, iter_lim):
     -------
     The same values as SciPy's lsqr implementation.
     """
-    work = np.zeros(A.shape[1])
+    m, n = A.shape
+    work = np.zeros(n)
 
     def mv(vec):
         np.dot(N, vec, out=work)
@@ -100,8 +113,25 @@ def pinv_precond_lsqr(A, b, N, tol, iter_lim):
         np.dot(A.T, vec, out=work)
         return N.T @ work
 
-    A_precond = sparla.LinearOperator(shape=(A.shape[0], N.shape[1]),
-                                      matvec=mv, rmatvec=rmv)
+    if b.ndim == 1:
+        A_precond = sparla.LinearOperator(shape=(m, N.shape[1]),
+                                          matvec=mv, rmatvec=rmv)
+    if b.ndim == 2:
+        #TODO: write tests for this case
+        mat_work = np.zeros(n, b.shape[1])
+
+        def mm(mat):
+            np.dot(N, mat, out=mat_work)
+            return A @ work
+
+        def rmm(mat):
+            np.dot(A.T, mat, out=mat_work)
+            return N.T @ work
+
+        A_precond = sparla.LinearOperator(shape=(m, N.shape[1]),
+                                          matvec=mv, rmatvec=rmv,
+                                          matmat=mm, rmatmat=rmm)
+
     result = sparla.lsqr(A_precond, b, atol=tol, btol=tol, iter_lim=iter_lim)
     result = (N @ result[0],) + result[1:]
     return result
@@ -109,7 +139,7 @@ def pinv_precond_lsqr(A, b, N, tol, iter_lim):
 
 def lr_precond_gram(A, R):
     """Return a linear operator that represents (A @ inv(R)).T @ (A @ inv(R))"""
-
+    #TODO: provide matmat and rmatmat implementations
     work1 = np.zeros(A.shape[1])
     work2 = np.zeros(A.shape[0])
 
@@ -155,6 +185,7 @@ def upper_tri_precond_cg(A, b, R, tol, iter_lim, x0=None):
     -------
     The same values as SciPy's cg implementation.
     """
+    #TODO: write tests
     AtA_precond = lr_precond_gram(A, R)
     b_precond = solve_triangular(R, b, 'T', lower=False, check_finite=False)
     if x0 is not None:

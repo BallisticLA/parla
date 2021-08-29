@@ -459,7 +459,7 @@ class QB2(QBFactorizer):
             # Update the full factorization
             Q = np.column_stack((Q, Qi))
             B = np.row_stack((B, Bi))
-            A = A - Qi @ Bi
+            A -= Qi @ Bi
             sq_norm_A = sq_norm_A - la.norm(Bi, ord='fro') ** 2
             tol_ok = sq_norm_A <= sq_tol
             size_ok = B.shape[0] >= k
@@ -563,7 +563,7 @@ class QB3(QBFactorizer):
         H = A.T @ G
         for i in range(int(np.ceil(k/blk))):
             blk_start = i*blk
-            blk_end = min((i+1)*blk, S.shape[1])
+            blk_end = min((i+1)*blk, k)
             Si = S[:, blk_start:blk_end]
             BSi = B @ Si
             Yi = G[:, blk_start:blk_end] - Q @ BSi
