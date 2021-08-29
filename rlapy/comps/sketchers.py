@@ -155,17 +155,15 @@ class RS1(RowSketcher):
         if self.num_pass is odd.
         """
         rng = np.random.default_rng(rng)
-        external_num_pass = self.num_pass + 1
-        if external_num_pass % 2 == 1:
+        passes_done = 0
+        if self.num_pass % 2 == 0:
             S = self.sketch_op_gen(A.shape[1], k, rng)
-            passes_done = 0
-            q = (external_num_pass - 1) // 2
         else:
             S = A.T @ self.sketch_op_gen(A.shape[0], k, rng)
-            passes_done = 1
+            passes_done += 1
             if self.passes_per_stab == 1:
                 S = self.stabilizer(S)
-            q = (external_num_pass - 2) // 2
+        q = (self.num_pass - passes_done) // 2
         # q is an even integer; need to compute
         #   S := (A' A)^q S
         # up to intermediate stabilization.

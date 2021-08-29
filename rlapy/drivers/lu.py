@@ -103,22 +103,19 @@ class LU1(LUDecomposer):
         Q, B = self.qb(A, k + over, tol, rng)
         # ^ We have A \approx Q B
         #   Note: the orthogonality of Q isn't used
-        L1, U1, P1 = ulaw.lupt(B)  # B = L1 @ U1 @ P1.T
+        L1, U1, P1 = ulaw.lup(B)  # B = L1 @ U1 @ P1
         cutoff = min(k, U1.shape[0])
         U1 = U1[:cutoff, :]
         L1 = L1[:, :cutoff]
         Y = Q @ L1
         P2, L2, U2 = la.lu(Y)
         # When over = 0, we have ...
-        #   Q B = Q (L1 U1 P1')
-        #       = (Q L1) (U1 P1')
-        #       = (P2 L2 U2) (U1 P1')
-        #       = P2 L2 (U2 U1) (P1')
-        Pl = P2
-        L = L2
+        #   Q B = Q (L1 U1 P1)
+        #       = (Q L1) (U1 P1)
+        #       = (P2 L2 U2) (U1 P1)
+        #       = P2 L2 (U2 U1) (P1)
         U = U2 @ U1
-        Pu = P1.T
-        return Pl, L, U, Pu
+        return P2, L2, U, P1
 
 
 class LU2(LUDecomposer):
@@ -145,17 +142,16 @@ class LU2(LUDecomposer):
         rng = np.random.default_rng(rng)
         S = self.sk_op(A, k + over, rng)
         Y = A @ S
-        Ly, Uy, Py = ulaw.lupt(Y)  # Y @ Py = Ly @ Uy
+        # get a useful basis for range(Y); Py @ Ly
+        Py, Ly, Uy = la.lu(Y)
         if over > 0:
+            # truncate, as though we used RRLU.
             Ly = Ly[:, :k]
-        py = np.where(Py)[1]  # column indices
-        PyA = A[py, :]  # PyA = Py @ A
-        Z = self.lstsq(Ly, PyA)
-        # ^ TODO: use the fact that Ly is lower-triangular. The best
-        #    way to compute the pseudo-inverse might not involve least
-        #    squares.
-        Lz, Uz, Pz = ulaw.lupt(Z)  # Z @ Pz = Lz @ Uz
-        L = Ly @ Lz
-        U = Uz
-        # ^ Py @ A @ Pz \approx L @ U
-        return Py.T, L, U, Pz.T
+        # next, compute Z = pinv(Py @ Ly) @ A
+        pyt = np.where(Py.T)[1]
+        PyTA = A[pyt, :]
+        B = self.lstsq(Ly, PyTA)
+        Lb, Ub, Pb = ulaw.lup(B)
+        L = Ly @ Lb
+        U = Ub
+        return Py, L, U, Pb
