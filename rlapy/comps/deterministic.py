@@ -43,18 +43,18 @@ def a_times_inv_r(A, R, k=1):
 def upper_tri_precond_lsqr(A, b, R, tol, iter_lim, x0=None):
     """
     Run preconditioned LSQR to obtain an approximate solution to
-        min{ || A @ x - b ||_2 : x in R^m }
-    where A.shape = (n, m) has n >> m, so the problem is over-determined.
+        min{ || A @ x - b ||_2 : x in R^n }
+    where A.shape = (m, n) has m >> n, so the problem is over-determined.
 
     Parameters
     ----------
     A : ndarray
-        Data matrix with n rows and m columns. Columns are presumed linearly
+        Data matrix with m rows and n columns. Columns are presumed linearly
         independent (for now).
     b : ndarray
-        Right-hand-side b.shape = (n,).
+        Right-hand-side. b.shape = (m,) or b.shape = (m, k).
     R : ndarray
-        The upper-triangular preconditioner, has R.shape = (m, m).
+        The upper-triangular preconditioner, has R.shape = (n, n).
     tol : float
         Must be positive. Stopping criteria for LSQR.
     iter_lim : int
@@ -169,7 +169,7 @@ def upper_tri_precond_cg(A, b, R, tol, iter_lim, x0=None):
     A : np.ndarray
         Tall data matrix.
     b : np.ndarray
-        right-hand-side. Same number of columns as A.
+        right-hand-side. b.size == A.shape[0].
     R : np.ndarray
         Nonsingular upper-triangular preconditioner.
         The condition number of (A R^-1) should be near one.
