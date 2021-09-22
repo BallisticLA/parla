@@ -4,10 +4,13 @@ Routines for (approximately) solving over-determined least squares problems
     min{ || A x - b ||_2 + reg || x ||_2 : x in R^n }.
 """
 #TODO: implement LSRN's solver for strongly under-determined problems.
+#TODO: implement Blendenpik's solver for strongly under-determined problems
+#  (that implementation is only in the Matlab code, not in the paper).
 import warnings
 import scipy.linalg as la
 import numpy as np
-import rlapy.comps.deterministic as de
+import rlapy.comps.preconditioning as pc
+import time
 
 
 class OverLstsqSolver:
@@ -174,26 +177,84 @@ class SAP1(OverLstsqSolver):
     def __init__(self, sketch_op_gen, sampling_factor: int):
         self.sketch_op_gen = sketch_op_gen
         self.sampling_factor = sampling_factor
+        self.raw_res = None
+        # This implementation has the option of logging detailed information
+        # on runtime and the rate at which (preconditioned) normal equation
+        # error decays while LSQR runs. This isn't part of the public API
+        # and might change. Refer to __call__ for precise meaning.
+        self.log = {'time_sketch': -1.0,
+                    'time_factor': -1.0,
+                    'time_presolve': -1.0,
+                    'time_iterate': -1.0,
+                    'times': None,
+                    'arnorms': None,
+                    'x': None}
 
-    def __call__(self, A, b, tol, iter_lim, rng):
+    def __call__(self, A, b, tol, iter_lim, rng, logging=True):
         n_rows, n_cols = A.shape
         d = dim_checks(self.sampling_factor, n_rows, n_cols)
         if not np.isnan(tol):
             assert tol >= 0
             assert tol < np.inf
         rng = np.random.default_rng(rng)
+
+        # Sketch the data matrix
+        tic = time.time() if logging else 0
         S = self.sketch_op_gen(d, n_rows, rng)
         A_ske = S @ A
-        # noinspection PyTupleAssignmentBalance
+        toc = time.time() if logging else 0
+        time_sketch = toc - tic
+        self.log['time_sketch'] = time_sketch
+
+        # Factor the sketch
+        tic = time.time() if logging else 0
         Q, R = la.qr(A_ske, overwrite_a=True, mode='economic')
+        toc = time.time() if logging else 0
+        time_factor = toc - tic
+        self.log['time_factor'] = time_factor
+
+        # Sketch-and-solve type preprocessing
+        tic = time.time() if logging else 0
         b_ske = S @ b
         x_ske = la.solve_triangular(R, Q.T @ b_ske, lower=False)
         x0 = None
         if np.linalg.norm(A @ x_ske - b) < np.linalg.norm(b):
             x0 = x_ske
-        res = de.upper_tri_precond_lsqr(A, b, R, tol, iter_lim, x0=x0)
-        x_ske = res[0]
-        return x_ske
+        toc = time.time() if logging else 0
+        time_presolve = toc - tic
+        self.log['time_presolve'] = time_presolve
+
+        # Iterative phase
+        tic = time.time() if logging else 0
+        res = pc.upper_tri_precond_lsqr(A, b, R, tol, iter_lim, x0=x0)
+        toc = time.time() if logging else 0
+        time_iterate = toc - tic
+        self.log['time_iterate'] = time_iterate
+
+        iters = res[2]
+        # Record a vector of cumulative times to (1) sketch and factor, and
+        # (2) take an individual step in LSQR (amortized!).
+        #
+        # Amortizing the time taken by a single step of LSQR is reasonable,
+        # because convergence behavior can be seen by how the normal
+        # equation error decays from one iteration to the next.
+        time_setup = time_sketch + time_factor
+        amortized = np.linspace(0, time_iterate, iters, endpoint=True)
+        cumulative = time_setup + time_presolve + amortized
+        times = np.concatenate(([time_setup], cumulative))
+        self.log['times'] = times
+
+        arnorms = res[7][:iters]
+        # Record a vector of (preconditioned) normal equation errors. Treat
+        # the zero vector as a theoretically valid initialization point which
+        # we would use before the "solve" phase of "sketch-and-solve".
+        ar0 = A.T @ b
+        ar0 = la.solve_triangular(R, ar0, 'T', lower=False, overwrite_b=True)
+        ar0norm = la.norm(ar0)
+        arnorms = np.concatenate(([ar0norm], arnorms))
+        self.log['x'] = res[0]
+        self.log['arnorms'] = arnorms
+        return res[0]
 
 
 class SAP2(OverLstsqSolver):
@@ -248,12 +309,12 @@ class SAP2(OverLstsqSolver):
             b_remainder = b - A @ x_ske
             if la.norm(b_remainder, ord=2) < la.norm(b, ord=2):
                 # x_ske is a better starting point than the zero vector.
-                x_star = de.pinv_precond_lsqr(A, b_remainder,
+                x_star = pc.pinv_precond_lsqr(A, b_remainder,
                                               N, tol, iter_lim)[0]
                 x_star = x_star + x_ske
             else:
                 # The zero vector is at least as good as x_ske.
-                x_star = de.pinv_precond_lsqr(A, b, N, tol, iter_lim)[0]
+                x_star = pc.pinv_precond_lsqr(A, b, N, tol, iter_lim)[0]
         else:
-            x_star = de.pinv_precond_lsqr(A, b, N, tol, iter_lim)[0]
+            x_star = pc.pinv_precond_lsqr(A, b, N, tol, iter_lim)[0]
         return x_star

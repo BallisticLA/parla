@@ -5,6 +5,7 @@ vendors to optimize their performance.
 """
 from scipy.linalg import solve_triangular
 import scipy.sparse.linalg as sparla
+from rlapy.comps.lsqr import lsqr
 import numpy as np
 
 
@@ -66,14 +67,12 @@ def upper_tri_precond_lsqr(A, b, R, tol, iter_lim, x0=None):
     -------
     The same values as SciPy's lsqr implementation.
     """
-    A_precond = a_times_inv_r(A, R)
+    A_pc = a_times_inv_r(A, R)
     if x0 is not None:
         y0 = (R @ x0).ravel()
-        result = sparla.lsqr(A_precond, b, atol=tol, btol=tol,
-                             iter_lim=iter_lim, x0=y0)
+        result = lsqr(A_pc, b, atol=tol, btol=tol, iter_lim=iter_lim, x0=y0)
     else:
-        result = sparla.lsqr(A_precond, b, atol=tol, btol=tol,
-                             iter_lim=iter_lim)
+        result = lsqr(A_pc, b, atol=tol, btol=tol, iter_lim=iter_lim)
     solve_triangular(R, result[0], lower=False, overwrite_b=True)
     return result
 
