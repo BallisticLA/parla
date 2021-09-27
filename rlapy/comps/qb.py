@@ -76,7 +76,7 @@ def qb(num_passes, A, k, rng):
     rso_ = RS1(gaussian_operator, num_passes - 2, ulaw.orth, 1)
     rf_ = RF1(rso_)
     qb_ = QB1(rf_)
-    Q, B = qb_(A, k, 0, rng)
+    Q, B = qb_(A, k, np.NaN, rng)
     return Q, B
 
 
@@ -340,8 +340,9 @@ class QB1(QBFactorizer):
         """
         assert k > 0
         assert k <= min(A.shape)
-        assert tol >= 0
-        assert tol < np.inf
+        if not np.isnan(tol):
+            assert tol >= 0
+            assert tol < np.inf
         rng = np.random.default_rng(rng)
         Q = self.rangefinder(A, k, tol, rng)
         B = Q.T @ A
@@ -438,14 +439,17 @@ class QB2(QBFactorizer):
             A = np.copy(A)
         assert k > 0
         assert k <= min(A.shape)
-        if not np.isnan(tol):
+        use_tol = not np.isnan(tol)
+        if use_tol:
             assert tol >= 0
             assert tol < np.inf
+            use_tol = tol > 0  # override to False if tol == 0.
+        if use_tol:
+            sq_norm_A = la.norm(A, ord='fro') ** 2
+            sq_tol = tol ** 2
         rng = np.random.default_rng(rng)
         Q = np.empty(shape=(A.shape[0], 0), dtype=float)
         B = np.empty(shape=(0, A.shape[1]), dtype=float)
-        sq_norm_A = la.norm(A, ord='fro') ** 2
-        sq_tol = tol ** 2
         blk = self.blk
         while True:
             if B.shape[0] + blk > k:
@@ -460,10 +464,11 @@ class QB2(QBFactorizer):
             Q = np.column_stack((Q, Qi))
             B = np.row_stack((B, Bi))
             A -= Qi @ Bi
-            sq_norm_A = sq_norm_A - la.norm(Bi, ord='fro') ** 2
-            tol_ok = sq_norm_A <= sq_tol
-            size_ok = B.shape[0] >= k
-            if tol_ok or size_ok:
+            if use_tol:
+                sq_norm_A = sq_norm_A - la.norm(Bi, ord='fro') ** 2
+                if sq_norm_A <= sq_tol:
+                    break
+            if B.shape[0] >= k:
                 break
         return Q, B
 
@@ -541,14 +546,16 @@ class QB3(QBFactorizer):
         """
         assert k > 0
         assert k < min(A.shape)
-        if not np.isnan(tol):
+        use_tol = not np.isnan(tol)
+        if use_tol:
             assert tol >= 0
             assert tol < np.inf
+            use_tol = tol > 0  # override to False if tol == 0.
+        if use_tol:
+            sq_norm_A = la.norm(A, ord='fro') ** 2
+            sq_tol = tol ** 2
         Q = np.empty(shape=(A.shape[0], 0), dtype=float)
         B = np.empty(shape=(0, A.shape[1]), dtype=float)
-        if tol > 0:
-            sq_norm_A = la.norm(A, ord='fro') ** 2
-            sq_tol = tol**2
         rng = np.random.default_rng(rng)
         blk = self.blk
         S = self.sk_op(A, k, rng)
@@ -575,7 +582,7 @@ class QB3(QBFactorizer):
             Bi = la.solve_triangular(Ri, Bi, trans='T', overwrite_b=True)
             Q = np.column_stack((Q, Qi))
             B = np.row_stack((B, Bi))
-            if tol > 0:
+            if use_tol:
                 sq_norm_A = sq_norm_A - la.norm(Bi, ord='fro')**2
                 if sq_norm_A <= sq_tol:
                     break  # early stopping
