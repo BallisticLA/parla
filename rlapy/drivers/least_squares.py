@@ -186,11 +186,11 @@ class SAP1(OverLstsqSolver):
                     'time_factor': -1.0,
                     'time_presolve': -1.0,
                     'time_iterate': -1.0,
-                    'times': None,
-                    'arnorms': None,
-                    'x': None}
+                    'times': np.empty((1,)),
+                    'arnorms': np.empty((1,)),
+                    'x': np.empty((1,))}
 
-    def __call__(self, A, b, tol, iter_lim, rng, logging=True):
+    def __call__(self, A, b, tol, iter_lim, rng, logging=False):
         n_rows, n_cols = A.shape
         d = dim_checks(self.sampling_factor, n_rows, n_cols)
         if not np.isnan(tol):
@@ -285,36 +285,108 @@ class SAP2(OverLstsqSolver):
         self.sketch_op_gen = sketch_op_gen
         self.sampling_factor = sampling_factor
         self.smart_init = smart_init
+        # This implementation has the option of logging detailed information
+        # on runtime and the rate at which (preconditioned) normal equation
+        # error decays while LSQR runs. This isn't part of the public API
+        # and might change. Refer to __call__ for precise meaning.
+        self.log = {'time_sketch': -1.0,
+                    'time_factor': -1.0,
+                    'time_presolve': -1.0,
+                    'time_iterate': -1.0,
+                    'times': np.empty((1,)),
+                    'arnorms': np.empty((1,)),
+                    'x': np.empty((1,))}
 
-    def __call__(self, A, b, tol, iter_lim, rng):
+    def __call__(self, A, b, tol, iter_lim, rng, logging=False):
         n_rows, n_cols = A.shape
         d = dim_checks(self.sampling_factor, n_rows, n_cols)
         if not np.isnan(tol):
             assert tol >= 0
             assert tol < np.inf
         rng = np.random.default_rng(rng)
+
+        # Sketch the data matrix
+        tic = time.time() if logging else 0
         S = self.sketch_op_gen(d, n_rows, rng)
         A_ske = S @ A
-        # noinspection PyTupleAssignmentBalance
+        toc = time.time() if logging else 0
+        self.log['time_sketch'] = toc - tic
+
+        # Factor the sketch
+        #   We also measure the time to scale the right singular vectors
+        #   as needed for the preconditioner. SAP1 doesn't have a
+        #   directly comparable cost.
+        tic = time.time() if logging else 0
         U, sigma, Vh = la.svd(A_ske, overwrite_a=True, check_finite=False,
                               full_matrices=False)
         eps = np.finfo(float).eps
         rank = np.count_nonzero(sigma > sigma[0] * n_cols * eps)
         N = Vh[:rank, :].T / sigma[:rank]
+        toc = time.time() if logging else 0
+        self.log['time_factor'] = toc - tic
+
         if self.smart_init:
-            # This isn't necessarily preferable, because it changes the
-            # norm of b, which affects termination criteria.
+            # Sketch-and-solve type preprocessing
+            #   This isn't necessarily preferable, because it changes the
+            #   norm of b, which affects termination criteria.
+            tic = time.time() if logging else 0
             b_ske = S @ b
             x_ske = N @ (U[:, :rank].T @ b_ske)
             b_remainder = b - A @ x_ske
-            if la.norm(b_remainder, ord=2) < la.norm(b, ord=2):
+            success = la.norm(b_remainder, ord=2) < la.norm(b, ord=2)
+            toc = time.time() if logging else 0
+            self.log['time_presolve'] = toc - tic
+
+            # Iterative phase
+            if success:
                 # x_ske is a better starting point than the zero vector.
-                x_star = pc.pinv_precond_lsqr(A, b_remainder,
-                                              N, tol, iter_lim)[0]
+                tic = time.time() if logging else 0
+                res = pc.pinv_precond_lsqr(A, b_remainder,
+                                           N, tol, iter_lim)
+                x_star = res[0]
                 x_star = x_star + x_ske
+                toc = time.time() if logging else 0
+                self.log['time_iterate'] = toc - tic
             else:
                 # The zero vector is at least as good as x_ske.
-                x_star = pc.pinv_precond_lsqr(A, b, N, tol, iter_lim)[0]
+                tic = time.time() if logging else 0
+                res = pc.pinv_precond_lsqr(A, b, N, tol, iter_lim)
+                toc = time.time() if logging else 0
+                self.log['time_iterate'] = toc - tic
+                x_star = res[0]
         else:
-            x_star = pc.pinv_precond_lsqr(A, b, N, tol, iter_lim)[0]
+            # No presolve
+            self.log['time_presolve'] = 0
+
+            # Iterative phase
+            tic = time.time() if logging else 0
+            res = pc.pinv_precond_lsqr(A, b, N, tol, iter_lim)
+            toc = time.time() if logging else 0
+            self.log['time_iterate'] = toc - tic
+            x_star = res[0]
+
+        iters = res[2]
+        # Record a vector of cumulative times to (1) sketch and factor, and
+        # (2) take an individual step in LSQR (amortized!).
+        #
+        # Amortizing the time taken by a single step of LSQR is reasonable,
+        # because convergence behavior can be seen by how the normal
+        # equation error decays from one iteration to the next.
+        time_setup = self.log['time_sketch'] + self.log['time_factor']
+        amortized = np.linspace(0, self.log['time_iterate'], iters,
+                                endpoint=True)
+        cumulative = amortized + self.log['time_presolve'] + time_setup
+        times = np.concatenate(([time_setup], cumulative))
+        self.log['times'] = times
+
+        arnorms = res[7][:iters]
+        # Record a vector of (preconditioned) normal equation errors. Treat
+        # the zero vector as a theoretically valid initialization point which
+        # we would use before the "solve" phase of "sketch-and-solve".
+        ar0 = N.T @ (A.T @ b)
+        ar0norm = la.norm(ar0)
+        arnorms = np.concatenate(([ar0norm], arnorms))
+        self.log['x'] = x_star
+        self.log['arnorms'] = arnorms
+
         return x_star

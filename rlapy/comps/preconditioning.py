@@ -1,8 +1,3 @@
-"""
-Deterministic subroutines that support randomized algorithms.
-These subroutines don't go into rblas, because we won't be asking
-vendors to optimize their performance.
-"""
 from scipy.linalg import solve_triangular
 import scipy.sparse.linalg as sparla
 from rlapy.comps.lsqr import lsqr
@@ -117,7 +112,7 @@ def pinv_precond_lsqr(A, b, N, tol, iter_lim):
                                           matvec=mv, rmatvec=rmv)
     if b.ndim == 2:
         #TODO: write tests for this case
-        mat_work = np.zeros(n, b.shape[1])
+        mat_work = np.zeros((n, b.shape[1]))
 
         def mm(mat):
             np.dot(N, mat, out=mat_work)
@@ -131,7 +126,7 @@ def pinv_precond_lsqr(A, b, N, tol, iter_lim):
                                           matvec=mv, rmatvec=rmv,
                                           matmat=mm, rmatmat=rmm)
 
-    result = sparla.lsqr(A_precond, b, atol=tol, btol=tol, iter_lim=iter_lim)
+    result = lsqr(A_precond, b, atol=tol, btol=tol, iter_lim=iter_lim)
     result = (N @ result[0],) + result[1:]
     return result
 
