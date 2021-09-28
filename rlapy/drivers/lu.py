@@ -120,9 +120,8 @@ class LU1(LUDecomposer):
 
 class LU2(LUDecomposer):
 
-    def __init__(self, sk_op: RowSketcher, lstsq: la.lstsq):
+    def __init__(self, sk_op: RowSketcher):
         self.sk_op = sk_op
-        self.lstsq = lstsq
 
     def __call__(self, A, k, tol, over, rng):
         """
@@ -150,7 +149,7 @@ class LU2(LUDecomposer):
         # next, compute Z = pinv(Py @ Ly) @ A
         pyt = np.where(Py.T)[1]
         PyTA = A[pyt, :]
-        B = self.lstsq(Ly, PyTA)
+        B = la.lstsq(Ly, PyTA)[0]
         Lb, Ub, Pb = ulaw.lup(B)
         L = Ly @ Lb
         U = Ub
