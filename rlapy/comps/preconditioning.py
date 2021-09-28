@@ -11,8 +11,8 @@ def a_times_inv_r(A, R, k=1):
 
     def forward(arg, work):
         np.copyto(work, arg)
-        solve_triangular(R, work, lower=False, check_finite=False,
-                         overwrite_b=True)
+        work = solve_triangular(R, work, lower=False, check_finite=False,
+                                overwrite_b=True)
         return A @ work
 
     def adjoint(arg, work):
@@ -68,7 +68,9 @@ def upper_tri_precond_lsqr(A, b, R, tol, iter_lim, x0=None):
         result = lsqr(A_pc, b, atol=tol, btol=tol, iter_lim=iter_lim, x0=y0)
     else:
         result = lsqr(A_pc, b, atol=tol, btol=tol, iter_lim=iter_lim)
-    solve_triangular(R, result[0], lower=False, overwrite_b=True)
+    z = result[0]
+    z = solve_triangular(R, z, lower=False, overwrite_b=True)
+    result = (z,) + result[1:]
     return result
 
 
@@ -139,8 +141,8 @@ def lr_precond_gram(A, R):
 
     def mv(vec):
         np.copyto(work1, vec)
-        solve_triangular(R, work1, lower=False, check_finite=False,
-                         overwrite_b=True)
+        work1 = solve_triangular(R, work1, lower=False, check_finite=False,
+                                 overwrite_b=True)
         np.dot(A, work1, out=work2)
         np.dot(A.T, work2, out=work1)
         res = solve_triangular(R, work1, 'T', lower=False, check_finite=False)
@@ -189,5 +191,7 @@ def upper_tri_precond_cg(A, b, R, tol, iter_lim, x0=None):
     else:
         result = sparla.cg(AtA_precond, b_precond, atol=tol, btol=tol,
                            iter_lim=iter_lim)
-    solve_triangular(R, result[0], lower=False, overwrite_b=True)
+    z = result[0]
+    z = solve_triangular(R, z, lower=False, overwrite_b=True)
+    result = (z,) + result[1:]
     return result

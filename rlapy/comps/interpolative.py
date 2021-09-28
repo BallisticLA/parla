@@ -7,9 +7,11 @@ def qrcp_osid(Y, k, axis):
     if axis == 1:
         # Column ID
         Q, S, J = la.qr(Y, mode='economic', pivoting=True)
-        la.solve_triangular(S[:k, :k], S[:k, k:], overwrite_b=True, lower=False)
+        S_trailing = la.solve_triangular(S[:k, :k], S[:k, k:],
+                                         overwrite_b=True,
+                                         lower=False)
         Z = np.zeros((k, Y.shape[1]))
-        Z[:, J] = np.row_stack((np.eye(k), S[:k, k:]))
+        Z[:, J] = np.row_stack((np.eye(k), S_trailing))
         Js = J[:k]
         # Y \approx C @ Z; C = Y[:, Js]
         return Z, Js
