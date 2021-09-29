@@ -113,20 +113,20 @@ class TwoSidedID:
 
 class TSID1(TwoSidedID):
     """
-    Sketch + QRCP approach to double ID
+    Obtain a one-sided ID by any means, then deterministically extend
+    to a two-sided ID.
 
-    See Voronin & Martinsson, 2016, Sections 2.4 and 4.
+    Using OSID1 would make this a "Sketch + QRCP" approach to double ID,
+    as described in Voronin & Martinsson, 2016, Sections 2.4 and 4.
     """
 
-    def __init__(self, sk_op: RowSketcher):
-        self.sk_op = sk_op
+    def __init__(self, osid: OneSidedID):
+        self.osid = osid
 
     def exec(self, A, k, over, rng):
         rng = np.random.default_rng(rng)
         # TODO: start with col ID if A is tall
-        Sk = self.sk_op(A, k + over, rng)
-        Y = A @ Sk
-        X, Is = id_comps.qrcp_osid(Y, k, axis=0)
+        X, Is = self.osid(A, k, over, axis=0, rng=rng)
         A = A[Is, :]
         Z, Js = id_comps.qrcp_osid(A, k, axis=1)
         return X, Is, Z, Js
