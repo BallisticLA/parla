@@ -4,7 +4,7 @@ import scipy.linalg as la
 import rlapy.utils.sketching as sk
 
 
-def rand_low_rank(n_rows, n_cols, spectrum: Union[int, np.ndarray], rng):
+def rand_low_rank(n_rows, n_cols, spectrum: Union[int, np.ndarray], rng, factors=False):
     rng = np.random.default_rng(rng)
     if isinstance(spectrum, int):
         spectrum = rng.random(size=(spectrum,))
@@ -15,7 +15,10 @@ def rand_low_rank(n_rows, n_cols, spectrum: Union[int, np.ndarray], rng):
     U = sk.orthonormal_operator(n_rows, rank, rng)
     V = sk.orthonormal_operator(rank, n_cols, rng)
     M = (U * spectrum) @ V
-    return M
+    if factors:
+        return M, U, spectrum, V
+    else:
+        return M
 
 
 def simple_mat(n_rows, n_cols, scale, rng):

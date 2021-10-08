@@ -91,6 +91,12 @@ def inconsistent_gen():
     return ath
 
 
+"""
+TODO: update these tests to take advantage of logging in least-squares drivers.
+The logging will let us test convergence rates without having to re-run the algorithm
+many times.
+"""
+
 class AlgTestHelper:
 
     def __init__(self, A, b, x_opt, U, s, Vt):
