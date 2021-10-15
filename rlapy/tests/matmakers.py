@@ -1,5 +1,6 @@
 from typing import Union
 import numpy as np
+import math
 import scipy.linalg as la
 import rlapy.utils.sketching as sk
 
@@ -29,3 +30,37 @@ def simple_mat(n_rows, n_cols, scale, rng):
     RA *= damp
     A_bad = QA @ RA
     return A_bad
+
+
+def exponent_spectrum(n_rows, n_cols, spectrum: Union[int, np.ndarray], rng, spectrum_param, factors=False):
+    rng = np.random.default_rng(rng)
+    if isinstance(spectrum, int):
+        # Is this faster than np.empty(spectrum, float)?
+        spectrum = rng.random(size=(spectrum,))
+    rank = spectrum.size
+    for i in range (0, rank):
+        spectrum[i] = math.exp(-(i + 1)  / spectrum_param)
+    U = sk.orthonormal_operator(n_rows, rank, rng)
+    V = sk.orthonormal_operator(rank, n_cols, rng)
+    M = (U * spectrum) @ V
+    if factors:
+        return M, U, spectrum, V
+    else:
+        return M
+
+def s_shaped_spectrum(n_rows, n_cols, spectrum: Union[int, np.ndarray], rng, factors=False):
+    rng = np.random.default_rng(rng)
+    if isinstance(spectrum, int):
+        # Is this faster than np.empty(spectrum, float)?
+        spectrum = rng.random(size=(spectrum,))
+    rank = spectrum.size
+    for i in range (0, rank):
+        spectrum[i] = 0.0001 + 1 / (1 + math.exp(i - 29));
+    U = sk.orthonormal_operator(n_rows, rank, rng)
+    V = sk.orthonormal_operator(rank, n_cols, rng)
+    M = (U * spectrum) @ V
+    if factors:
+        return M, U, spectrum, V
+    else:
+        return M
+

@@ -67,8 +67,10 @@ class RowSketcher:
         That is -- there is no requirement that implementations actually
         read the entries of A.
         """
-        raise NotImplementedError()
+        #raise NotImplementedError()
 
+        S = np.random.standard_normal((A.shape[1], k))
+        return S
 
 class RS1(RowSketcher):
     """
