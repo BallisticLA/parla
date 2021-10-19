@@ -1,6 +1,5 @@
 from typing import Union
 import numpy as np
-import math
 import scipy.linalg as la
 import rlapy.utils.sketching as sk
 
@@ -32,37 +31,11 @@ def simple_mat(n_rows, n_cols, scale, rng):
     return A_bad
 
 
-def exponent_spectrum(n_rows, n_cols, spectrum: Union[int, np.ndarray], rng, spectrum_param, factors=False):
-    rng = np.random.default_rng(rng)
-    if isinstance(spectrum, int):
-        spectrum = np.empty(spectrum, float)
-    rank = spectrum.size
-    for i in range (rank):
-        spectrum[i] = math.exp(-(i + 1)  / spectrum_param)
-    U = sk.orthonormal_operator(n_rows, rank, rng)
-    V = sk.orthonormal_operator(rank, n_cols, rng)
-    M = (U * spectrum) @ V
-    if factors:
-        return M, U, spectrum, V
-    else:
-        return M
+def exponent_spectrum(n_rows, n_cols, rank, rng, spectrum_param, factors=False):
+    spectrum = np.exp((-np.arange(1, rank) + 1) / spectrum_param)
+    return rand_low_rank(n_rows, n_cols, spectrum, rng, factors)     
 
-def s_shaped_spectrum(n_rows, n_cols, spectrum: Union[int, np.ndarray], rng, factors=False):
-    rng = np.random.default_rng(rng)
-    if isinstance(spectrum, int):
-        spectrum = np.empty(spectrum, float)
-    rank = spectrum.size
-    for i in range (rank):
-        spectrum[i] = 0.0001 + 1 / (1 + math.exp(i - 29));
-    U = sk.orthonormal_operator(n_rows, rank, rng)
-    V = sk.orthonormal_operator(rank, n_cols, rng)
-    M = (U * spectrum) @ V
-    if factors:
-        return M, U, spectrum, V
-    else:
-        return M
 
-rng = np.random.default_rng(89374539423)
-A, U, s, Vt = s_shaped_spectrum(200, 50, 50, rng, factors=True)
-
-print(s.size)
+def s_shaped_spectrum(n_rows, n_cols, rank, rng, factors=False):
+    spectrum = 0.0001 + 1 / (1 + np.exp(np.arange(1, rank) - 29));
+    return rand_low_rank(n_rows, n_cols, spectrum, rng, factors)      

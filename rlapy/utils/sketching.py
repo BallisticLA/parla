@@ -53,7 +53,12 @@ def sjlt_operator(n_rows, n_cols, rng, vec_nnz=8):
         # column and row indices
         row_vecs = []
         for i in range(n_cols):
-            rows = rng.choice(n_rows, vec_nnz, replace=False)
+            """
+            Switched "replace" value b/c running QB2 results in:
+            "ValueError: Cannot take a larger sample than population when replace is False"
+            otherwise.
+            """
+            rows = rng.choice(n_rows, vec_nnz, replace=True)
             row_vecs.append(rows)
         rows = np.concatenate(row_vecs)
         cols = np.repeat(np.arange(n_cols), vec_nnz)

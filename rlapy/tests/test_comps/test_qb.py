@@ -45,7 +45,7 @@ Below, "decay" refers to decay of singular values of an input matrix.
 Decreasing the spectrum_param eventually results in an ill-conditioned matrix & tests failing
 (wrong approximation accuracy and rank of B).
 """
-def fast_decay_full_exact_rank():
+def fast_decay_low_exact_rank():
     m, n, k, spectrum_param = 200, 50, 15, 2
     rng = np.random.default_rng(89374539423)
     A, U, s, Vt = matmakers.exponent_spectrum(n, m, k, rng, spectrum_param, factors=True)
@@ -53,7 +53,7 @@ def fast_decay_full_exact_rank():
     return ath    
 
 
-def slow_decay_full_exact_rank():
+def slow_decay_low_exact_rank():
     m, n, k, spectrum_param = 200, 50, 15, 150
     rng = np.random.default_rng(89374539423)
     A, U, s, Vt = matmakers.exponent_spectrum(n, m, k, rng, spectrum_param, factors=True)
@@ -61,8 +61,8 @@ def slow_decay_full_exact_rank():
     return ath     
 
 
-def s_shaped_decay_full_exact_rank():
-    m, n, k, spectrum_param = 200, 50, 15, 150
+def s_shaped_decay_low_exact_rank():
+    m, n, k = 200, 50, 45
     rng = np.random.default_rng(89374539423)
     A, U, s, Vt = matmakers.s_shaped_spectrum(n, m, k, rng, factors=True)
     ath = AlgTestHelper(A, U, s, Vt)
@@ -110,12 +110,11 @@ class AlgTestHelper:
     # Check if B is fullrank - rather rudimentary; catches the case when rank is overestimated.
     def test_exact_rank_B(self):
         Q, B = self.QB
-        self.tester.assertEqual(np.linalg.matrix_rank(B), min(B.shape))
+        self.tester.assertEqual(np.linalg.matrix_rank(B), min(B.shape)) 
 
-    # Non-exact rank in an approximate case
-    def test_estimated_rank_B(self):
-        Q, B = self.QB
-        self.tester.assertLessEqual(np.linalg.matrix_rank(B), B.shape[0])    
+    # Check if the matrix A has been unchanged
+    def test_unchanged_A(self, A_copy):
+        self.tester.assertEqual(la.norm(self.A, ord='fro'), la.norm(A_copy, ord='fro')) 
 
 
 class TestQBFactorizer(unittest.TestCase):
@@ -137,7 +136,7 @@ class TestQBFactorizer(unittest.TestCase):
             ath.test_exact_B(test_tol)
             ath.test_exact_rank_B()     
 
-    # Same as above + estimated rank(B) test.
+    # Same as above - rank(B) test.
     @staticmethod
     def run_batch_estimated(ath: AlgTestHelper,
                         alg: rqb.QBFactorizer,
@@ -150,8 +149,8 @@ class TestQBFactorizer(unittest.TestCase):
             # Test the results of the QB algorithm
             ath.test_valid_onb(test_tol)
             ath.test_exact(test_tol)
-            ath.test_exact_B(test_tol) 
-            ath.test_estimated_rank_B()      
+            ath.test_exact_B(test_tol)  
+
 
 # Below tests are mainly "universal" among different types of QB =>
 # still need to produce more algorithm-specific tests. 
@@ -177,13 +176,13 @@ class TestQB1(TestQBFactorizer):
         ath2 = wide_low_exact_rank()
         alg_rank = ath2.s.size
         self.run_batch_exact(ath2, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath3 = fast_decay_full_exact_rank()
+        ath3 = fast_decay_low_exact_rank()
         alg_rank = ath3.s.size
         self.run_batch_exact(ath3, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath4 = slow_decay_full_exact_rank()
+        ath4 = slow_decay_low_exact_rank()
         alg_rank = ath4.s.size
         self.run_batch_exact(ath4, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath5 = s_shaped_decay_full_exact_rank()
+        ath5 = s_shaped_decay_low_exact_rank()
         alg_rank = ath5.s.size
         self.run_batch_exact(ath5, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
 
@@ -198,7 +197,7 @@ class TestQB1(TestQBFactorizer):
     # Same as above, except uses SJLT sketching matrix.
     def test_exact_sparse(self):
         alg = rqb.QB1(rqb.RF1(rsks.RS1(
-            sketch_op_gen=usk.gaussian_operator,
+            sketch_op_gen=usk.sjlt_operator,
             num_pass=1,
             stabilizer=ulaw.orth,
             passes_per_stab=1
@@ -216,13 +215,13 @@ class TestQB1(TestQBFactorizer):
         ath2 = wide_low_exact_rank()
         alg_rank = ath2.s.size
         self.run_batch_exact(ath2, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath3 = fast_decay_full_exact_rank()
+        ath3 = fast_decay_low_exact_rank()
         alg_rank = ath3.s.size
         self.run_batch_exact(ath3, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath4 = slow_decay_full_exact_rank()
+        ath4 = slow_decay_low_exact_rank()
         alg_rank = ath4.s.size
         self.run_batch_exact(ath4, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath5 = s_shaped_decay_full_exact_rank()
+        ath5 = s_shaped_decay_low_exact_rank()
         alg_rank = ath5.s.size
         self.run_batch_exact(ath5, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
 
@@ -280,17 +279,20 @@ class TestQB2(TestQBFactorizer):
         # to the actual rank of the data matrix.
         ath1 = tall_low_exact_rank()
         alg_rank = ath1.s.size
+        A_copy = ath1.A
         self.run_batch_exact(ath1, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
+        # Algorithm-specific check for whether initial matirx A has been updated.
+        ath1.test_unchanged_A(A_copy)
         ath2 = wide_low_exact_rank()
         alg_rank = ath2.s.size
         self.run_batch_exact(ath2, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath3 = fast_decay_full_exact_rank()
+        ath3 = fast_decay_low_exact_rank()
         alg_rank = ath3.s.size
         self.run_batch_exact(ath3, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath4 = slow_decay_full_exact_rank()
+        ath4 = slow_decay_low_exact_rank()
         alg_rank = ath4.s.size
         self.run_batch_exact(ath4, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath5 = s_shaped_decay_full_exact_rank()
+        ath5 = s_shaped_decay_low_exact_rank()
         alg_rank = ath5.s.size
         self.run_batch_exact(ath5, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
 
@@ -326,13 +328,13 @@ class TestQB2(TestQBFactorizer):
         ath2 = wide_low_exact_rank()
         alg_rank = min(ath2.A.shape)
         self.run_batch_estimated(ath2, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath3 = fast_decay_full_exact_rank()
+        ath3 = fast_decay_low_exact_rank()
         alg_rank = min(ath3.A.shape)
         self.run_batch_estimated(ath3, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath4 = slow_decay_full_exact_rank()
+        ath4 = slow_decay_low_exact_rank()
         alg_rank = min(ath4.A.shape)
         self.run_batch_estimated(ath4, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath5 = s_shaped_decay_full_exact_rank()
+        ath5 = s_shaped_decay_low_exact_rank()
         alg_rank = min(ath5.A.shape)
         self.run_batch_estimated(ath5, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
     
@@ -340,7 +342,7 @@ class TestQB2(TestQBFactorizer):
     def test_exact_sparse(self):
         alg = rqb.QB2(
             rf=rqb.RF1(rsks.RS1(
-                sketch_op_gen=usk.gaussian_operator,
+                sketch_op_gen=usk.sjlt_operator,
                 num_pass=0,  # oblivious sketching operator
                 stabilizer=ulaw.orth,
                 passes_per_stab=1)),
@@ -360,13 +362,13 @@ class TestQB2(TestQBFactorizer):
         ath2 = wide_low_exact_rank()
         alg_rank = ath2.s.size
         self.run_batch_exact(ath2, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath3 = fast_decay_full_exact_rank()
+        ath3 = fast_decay_low_exact_rank()
         alg_rank = ath3.s.size
         self.run_batch_exact(ath3, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath4 = slow_decay_full_exact_rank()
+        ath4 = slow_decay_low_exact_rank()
         alg_rank = ath4.s.size
         self.run_batch_exact(ath4, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath5 = s_shaped_decay_full_exact_rank()
+        ath5 = s_shaped_decay_low_exact_rank()
         alg_rank = ath5.s.size
         self.run_batch_exact(ath5, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
 
@@ -430,48 +432,21 @@ class TestQB3(TestQBFactorizer):
         ath2 = wide_low_exact_rank()
         alg_rank = ath2.s.size
         self.run_batch_exact(ath2, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath3 = fast_decay_full_exact_rank()
+        ath3 = fast_decay_low_exact_rank()
         alg_rank = ath3.s.size 
         self.run_batch_exact(ath3, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath4 = slow_decay_full_exact_rank()
+        ath4 = slow_decay_low_exact_rank()
         alg_rank = ath4.s.size
         self.run_batch_exact(ath4, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath5 = s_shaped_decay_full_exact_rank()
+        ath5 = s_shaped_decay_low_exact_rank()
         alg_rank = ath5.s.size
         self.run_batch_exact(ath5, alg, alg_rank, alg_tol, test_tol, self.SEEDS)    
 
-    # Same as above, except uses SJLT sketching matrix.
-    def test_exact_sparse(self):
-        alg = rqb.QB3(
-            sk_op=rqb.RS1(
-            sketch_op_gen=usk.gaussian_operator,    
-            num_pass=0,  # oblivious sketching operator
-            stabilizer=ulaw.orth,
-            passes_per_stab=1),
-            blk=4
-        )
-        alg_tol = np.NaN
-        test_tol = 1e-8
-        # Run the above algorithm on tall matrices, wide matrices,
-        # and matrices with varying types of spectral decay.
-        #
-        # In all cases we set the target rank of the approximation matrix
-        # to the actual rank of the data matrix.
-        ath1 = tall_low_exact_rank()
-        alg_rank = ath1.s.size
-        self.run_batch_exact(ath1, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath2 = wide_low_exact_rank()
-        alg_rank = ath2.s.size
-        self.run_batch_exact(ath2, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath3 = fast_decay_full_exact_rank()
-        alg_rank = ath3.s.size
-        self.run_batch_exact(ath3, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath4 = slow_decay_full_exact_rank()
-        alg_rank = ath4.s.size
-        self.run_batch_exact(ath4, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath5 = s_shaped_decay_full_exact_rank()
-        alg_rank = ath5.s.size
-        self.run_batch_exact(ath5, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
+        """
+        No sparse operator testing, since QB3 requires the sketching routine to return a dense matrix.
+        Should we autimatically change storage type of a sketch if it is not dense for QB3 (so that it can still use
+        sparse operators)?
+        """
 
     def test_estimated_tol(self):
         alg = rqb.QB3(
@@ -496,18 +471,18 @@ class TestQB3(TestQBFactorizer):
         ath2 = wide_low_exact_rank()
         alg_rank = ath2.s.size
         self.run_batch_estimated(ath2, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        # Tests below should(?) fail, since in that case, alg_rank = min(A.shape) = 50.
-        ath3 = fast_decay_full_exact_rank()
+        ath3 = fast_decay_low_exact_rank()
         alg_rank = ath3.s.size
         self.run_batch_estimated(ath3, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath4 = slow_decay_full_exact_rank()
+        ath4 = slow_decay_low_exact_rank()
         alg_rank = ath4.s.size
         self.run_batch_estimated(ath4, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-        ath5 = s_shaped_decay_full_exact_rank()
+        ath5 = s_shaped_decay_low_exact_rank()
         alg_rank = ath5.s.size
         self.run_batch_estimated(ath5, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
 
-# Tests below should fail by assertion "k < min(A.shape)," but fail by test_valid_onb accuracy.
+# Tests fail by test_valid_onb accuracy - extra iteration of main loop in QB3 causes loss of orthogonality
+# in columns of Q. Solution: early termination (via comparing with previous iteration's error).
 """
     def test_overestimate(self):
         alg = rqb.QB3(
@@ -533,4 +508,4 @@ class TestQB3(TestQBFactorizer):
         if ath2.s.size * 1.2 <= min(ath1.A.shape):
             alg_rank_overestimated = math.floor(ath2.s.size * 1.2)
             self.run_batch_estimated(ath2, alg, alg_rank_overestimated, alg_tol, test_tol, self.SEEDS)   
-"""            
+"""     
