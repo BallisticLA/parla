@@ -29,3 +29,13 @@ def simple_mat(n_rows, n_cols, scale, rng):
     RA *= damp
     A_bad = QA @ RA
     return A_bad
+
+
+def exponent_spectrum(n_rows, n_cols, rank, rng, spectrum_param, factors=False):
+    spectrum = np.exp((-np.arange(1, rank) + 1) / spectrum_param)
+    return rand_low_rank(n_rows, n_cols, spectrum, rng, factors)     
+
+
+def s_shaped_spectrum(n_rows, n_cols, rank, rng, factors=False):
+    spectrum = 0.0001 + 1 / (1 + np.exp(np.arange(1, rank) - 29));
+    return rand_low_rank(n_rows, n_cols, spectrum, rng, factors)      

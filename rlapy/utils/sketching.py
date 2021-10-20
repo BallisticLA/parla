@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 import scipy.linalg as la
 import scipy.sparse as spar
@@ -52,8 +53,15 @@ def sjlt_operator(n_rows, n_cols, rng, vec_nnz=8):
         vec_nnz = min(n_cols, vec_nnz)
         # column and row indices
         row_vecs = []
+        bad_size = n_rows < vec_nnz
+        if bad_size:
+            msg = f"""
+            Can't set {vec_nnz} nonzeros per column for columns of length {n_rows}.
+            Sampling indices with replacement instead.
+            """
+            warnings.warn(msg)
         for i in range(n_cols):
-            rows = rng.choice(n_rows, vec_nnz, replace=False)
+            rows = rng.choice(n_rows, vec_nnz, replace=bad_size)
             row_vecs.append(rows)
         rows = np.concatenate(row_vecs)
         cols = np.repeat(np.arange(n_cols), vec_nnz)
