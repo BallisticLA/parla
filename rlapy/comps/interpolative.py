@@ -11,7 +11,7 @@ def qrcp_osid(Y, k, axis):
                                          overwrite_b=True,
                                          lower=False)
         Z = np.zeros((k, Y.shape[1]))
-        Z[:, J] = np.row_stack((np.eye(k), S_trailing))
+        Z[:, J] = np.hstack((np.eye(k), S_trailing))
         Js = J[:k]
         # Y \approx C @ Z; C = Y[:, Js]
         return Z, Js

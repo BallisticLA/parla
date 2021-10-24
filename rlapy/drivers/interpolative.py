@@ -2,6 +2,9 @@ import numpy as np
 import scipy.linalg as la
 from rlapy.comps.sketchers import RowSketcher
 import rlapy.comps.interpolative as id_comps
+import rlapy.utils.sketching as usk
+import rlapy.utils.linalg_wrappers as ulaw
+from rlapy.comps.sketchers import RS1
 
 """
 Look at SciPy's 
@@ -15,7 +18,7 @@ the top-level of a given user-facing function.
 class OneSidedID:
     """One-sided ID (row or column)"""
 
-    def exec(self, A, k, over, axis, gen):
+    def __call__(self, A, k, over, axis, gen):
         """
         Run a rank-k RowID (axis=0) or ColumnID (axis=1) on A,
         using oversampling parameter over.
@@ -41,7 +44,7 @@ class OSID1(OneSidedID):
     def __init__(self, sk_op: RowSketcher):
         self.sk_op = sk_op
 
-    def exec(self, A, k, over, axis, rng):
+    def __call__(self, A, k, over, axis, rng):
         rng = np.random.default_rng(rng)
         if axis == 0:
             # Row ID
@@ -69,7 +72,7 @@ class OSID2(OneSidedID):
     def __init__(self, sk_op: RowSketcher):
         self.sk_op = sk_op
 
-    def exec(self, A, k, over, axis, rng):
+    def __call__(self, A, k, over, axis, rng):
         rng = np.random.default_rng(rng)
         if axis == 0:
             # Row ID
@@ -93,10 +96,41 @@ class OSID2(OneSidedID):
             raise ValueError()
 
 
+class OSID3(OneSidedID):
+    """
+    Sketch + (QRCP skeleton) + (least squares) approach to ID
+
+    See Dong & Martinsson, 2021.
+
+    economic onesided ID that only selects the indices of col/row
+    """
+
+    def __init__(self, sk_op: RowSketcher):
+        self.sk_op = sk_op
+
+    def __call__(self, A, k, over, axis, rng):
+        rng = np.random.default_rng(rng)
+        if axis == 0:
+            # Row ID
+            Sk = self.sk_op(A, k + over, rng)
+            Y = A @ Sk
+            _, _, I = la.qr(Y.T, mode='economic', pivoting=True)
+            Is = I[:k]
+            return Is
+        elif axis == 1:
+            # Column ID
+            Sk = self.sk_op(A.T, k + over, rng).T
+            Y = Sk @ A
+            _, _, J = la.qr(Y, mode='economic', pivoting=True)
+            Js = J[:k]
+            return Js
+        else:
+            raise ValueError()
+
 class TwoSidedID:
     """Fixed rank Double ID"""
 
-    def exec(self, A, k, over, rng):
+    def __call__(self, A, k, over, rng):
         """
         Return (X, Is, Z, Js) where
             X is A.shape[0]-by-k,
@@ -123,10 +157,89 @@ class TSID1(TwoSidedID):
     def __init__(self, osid: OneSidedID):
         self.osid = osid
 
-    def exec(self, A, k, over, rng):
+    def __call__(self, A, k, over, rng):
         rng = np.random.default_rng(rng)
         # TODO: start with col ID if A is tall
         X, Is = self.osid(A, k, over, axis=0, rng=rng)
         A = A[Is, :]
         Z, Js = id_comps.qrcp_osid(A, k, axis=1)
         return X, Is, Z, Js
+
+class TSID2(TwoSidedID):
+    """
+
+    economic twosided ID that only selects the indices of col/row
+    """
+
+    def __init__(self, osid: OneSidedID):
+        self.osid = osid
+
+    def __call__(self, A, k, over, rng):
+        rng = np.random.default_rng(rng)
+        # TODO: start with col ID if A is tall
+        Is = self.osid(A, k, over, axis=0, rng=rng)
+        A = A[Is, :]
+        Js = self.osid(A, k, over, axis=1, rng=rng)
+        return Is, Js
+
+
+class CURDecomposition:
+    """Fixed rank CUR Decomposition"""
+
+    def __call__(self, A, k, over, rng):
+        """
+        Return (C, R) where
+            C is A.shape[0]-by-k,
+            R is k-by-A.shape[1],
+            Uinv is a function that takes B and outputs A[Is, Js]^{-1}B
+        so that
+            A \approx C @ U @ R.
+
+        Use oversampling parameter "over" in the sketching step.
+        """
+        raise NotImplementedError()
+
+class CURD1(CURDecomposition):
+    """
+    Obtain a two-sided ID by any means, then extend to a CUR decomposition
+
+    """
+    def __init__(self, tsid: TwoSidedID):
+        self.tsid = tsid
+        self.A_s = None
+    
+    def evaluate_inverse(self, B):
+        if self.A_s is None:
+            raise ValueError('U not initialized')
+        return la.solve(self.A_s, B)
+    
+    def __call__(self, A, k, over, rng):
+        rng = np.random.default_rng(rng)
+        Is, Js = self.tsid(A, k, over, rng=rng)
+        print("shape I: ", Is.shape)
+        print("shape J: ", Js.shape)
+        self.A_s = A[Is, :][:, Js]
+        U = self.evaluate_inverse
+        return Is, Js, U
+
+def test_cur(m, rank, k):
+    A = np.random.randn(m, rank).astype(np.float64)
+    A = A.dot(A.T)[:, :(m // 2)]
+    rng = 1
+    num_pass = 4
+    over = 3
+    print(A.shape)
+    # ------------------------------------------------------------------------
+    # test index_set == False
+
+    curd = CURD1(TSID2(OSID3(RS1(sketch_op_gen=usk.gaussian_operator,
+            num_pass=num_pass,
+            stabilizer=ulaw.orth,
+            passes_per_stab=1))))
+    Is, Js, U = curd(A, k, over, rng)
+    A_id = A[:, Js] @ U(A[Is, :])
+    err = la.norm(A - A_id) / la.norm(A)
+    print("error: ", err)
+    assert err < 1e-4
+
+test_cur(1000, 300, 300)
