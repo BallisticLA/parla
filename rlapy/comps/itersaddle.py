@@ -43,21 +43,38 @@ def precond_lsqr(A, b, c, delta, tol, iter_lim, R, upper_tri, z0=None):
         If provided, use as an initial approximate solution to (Ap'Ap) x = Ap' b,
         where Ap = A @ M is the preconditioned version of A.
     """
-    assert c is None or la.norm(c) == 0
+    m, n = A.shape
     k = 1 if b.ndim == 1 else b.shape[1]
-
-    # TODO: modify the gen_pc functions to handle delta > 0
-    gen_pc = a_times_inv_r if upper_tri else a_times_m
-    A_pc = gen_pc(A, delta, R, k)
-    result = lsqr(A_pc, b, atol=tol, btol=tol, iter_lim=iter_lim, x0=z0)
     if upper_tri:
-        z = result[0]
-        x = la.solve_triangular(R, z, lower=False, overwrite_b=True)
+        A_pc = a_times_inv_r(A, delta, R, k)
+        M = lambda z: la.solve_triangular(R, z, lower=False)
     else:
-        x = R @ result[0]
+        A_pc = a_times_m(A, delta, R, k)
+        M = lambda z: R @ z
 
-    result = (x,) + result[1:]
-    return result
+    if c is None or la.norm(c) == 0:
+        if delta > 0:
+            b = np.concatenate((b, np.zeros(n)))
+        result = lsqr(A_pc, b, atol=tol, btol=tol, iter_lim=iter_lim, x0=z0)
+        x = M(result[0])
+        y = b[:m] - A @ x
+        result = (x, y) + result[1:]
+        return result
+
+    elif b is None or la.norm(b) == 0:
+        c_pc = M(c)
+        result = lsqr(A_pc.T, c_pc, atol=tol, btol=tol, iter_lim=iter_lim)
+        y = result[0]
+        if delta > 0:
+            y = y[:m]
+            x = (c - A.T @ y) / delta
+        else:
+            x = np.NaN * np.empty(n)
+        result = (x, y) + result[1:]
+        return result
+
+    else:
+        raise ValueError('One of "b" or "c" must be zero.')
 
 
 def upper_tri_precond_cg(A, b, R, tol, iter_lim, x0=None):

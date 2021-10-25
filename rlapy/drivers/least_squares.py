@@ -232,7 +232,7 @@ class SAP1(OverLstsqSolver):
         time_iterate = toc - tic
         self.log['time_iterate'] = time_iterate
 
-        iters = res[2]
+        iters = res[3]
         # Record a vector of cumulative times to (1) sketch and factor, and
         # (2) take an individual step in LSQR (amortized!).
         #
@@ -245,7 +245,7 @@ class SAP1(OverLstsqSolver):
         times = np.concatenate(([time_setup], cumulative))
         self.log['times'] = times
 
-        arnorms = res[7][:iters]
+        arnorms = res[8][:iters]
         # Record a vector of (preconditioned) normal equation errors. Treat
         # the zero vector as a theoretically valid initialization point which
         # we would use before the "solve" phase of "sketch-and-solve".
@@ -352,7 +352,7 @@ class SAP2(OverLstsqSolver):
             toc = time.time() if logging else 0
             self.log['time_iterate'] = toc - tic
             x_star = res[0]
-        iters = res[2]
+        iters = res[3]
         # Record a vector of cumulative times to (1) sketch and factor, and
         # (2) take an individual step in LSQR (amortized!).
         #
@@ -366,7 +366,7 @@ class SAP2(OverLstsqSolver):
         times = np.concatenate(([time_setup], cumulative))
         self.log['times'] = times
 
-        arnorms = res[7][:iters]
+        arnorms = res[8][:iters]
         # Record a vector of (preconditioned) normal equation errors. Treat
         # the zero vector as a theoretically valid initialization point which
         # we would use before the "solve" phase of "sketch-and-solve".
