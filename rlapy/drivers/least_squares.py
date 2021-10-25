@@ -92,7 +92,7 @@ def dim_checks(sampling_factor, n_rows, n_cols):
     return d
 
 
-class SAS1(OverLstsqSolver):
+class SSO1(OverLstsqSolver):
     """A sketch-and-solve approach to overdetermined ordinary least squares.
 
     When constructing objects from this class, users may specify the LAPACK
@@ -140,7 +140,7 @@ class SAS1(OverLstsqSolver):
         return x_ske
 
 
-class SAP1(OverLstsqSolver):
+class SPO3(OverLstsqSolver):
     """A sketch-and-precondition approach to overdetermined ordinary least
     squares. This implementation uses QR to obtain the preconditioner and
     it uses LSQR for the iterative method.
@@ -259,7 +259,7 @@ class SAP1(OverLstsqSolver):
         return res[0]
 
 
-class SAP2(OverLstsqSolver):
+class SPO1(OverLstsqSolver):
     """A sketch-and-precondition approach to overdetermined ordinary least
     squares. This implementation uses the SVD to obtain the preconditioner
     and it uses LSQR for the iterative method.
@@ -317,7 +317,7 @@ class SAP2(OverLstsqSolver):
 
         # Factor the sketch
         #   We also measure the time to scale the right singular vectors
-        #   as needed for the preconditioner. SAP1 doesn't have a
+        #   as needed for the preconditioner. SPO3 doesn't have a
         #   directly comparable cost.
         tic = time.time() if logging else 0
         U, sigma, Vh = la.svd(A_ske, overwrite_a=True, check_finite=False,

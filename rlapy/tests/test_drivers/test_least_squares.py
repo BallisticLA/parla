@@ -236,7 +236,7 @@ class TestOverLstsqSolver(unittest.TestCase):
 
 class TestSAP1(TestOverLstsqSolver):
     """
-    Test SAP1 objects (sketch-and-precondition based on QR).
+    Test SPO3 objects (sketch-and-precondition based on QR).
 
     These objects are characterized by
         (1) the method they use to generate the sketching operator,
@@ -245,44 +245,44 @@ class TestSAP1(TestOverLstsqSolver):
     """
 
     def test_srct(self):
-        sap = rlsq.SAP1(usk.srct_operator, sampling_factor=3)
+        sap = rlsq.SPO3(usk.srct_operator, sampling_factor=3)
         self.run_batch_sap(sap, 1e-8, 40, 100.0, 10.0)
         pass
 
     def test_gaussian(self):
-        sap = rlsq.SAP1(usk.gaussian_operator, sampling_factor=2)
+        sap = rlsq.SPO3(usk.gaussian_operator, sampling_factor=2)
         self.run_batch_sap(sap, 1e-8, 40, 100.0, 10.0)
         pass
 
     def test_sjlt(self):
-        sap = rlsq.SAP1(usk.sjlt_operator, sampling_factor=3)
+        sap = rlsq.SPO3(usk.sjlt_operator, sampling_factor=3)
         self.run_batch_sap(sap, 1e-8, 40, 100.0, 10.0)
         pass
 
     def test_consistent_tall(self):
         ath = consistent_tall()
-        sap = rlsq.SAP1(usk.gaussian_operator, sampling_factor=1)
+        sap = rlsq.SPO3(usk.gaussian_operator, sampling_factor=1)
         self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
 
     def test_consistent_square(self):
         ath = consistent_square()
-        sap = rlsq.SAP1(usk.gaussian_operator, sampling_factor=1)
+        sap = rlsq.SPO3(usk.gaussian_operator, sampling_factor=1)
         self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
 
     def test_inconsistent_orth(self):
         ath = inconsistent_orthog()
-        sap = rlsq.SAP1(usk.gaussian_operator, sampling_factor=3)
+        sap = rlsq.SPO3(usk.gaussian_operator, sampling_factor=3)
         self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
 
     def test_inconsistent_gen(self):
         ath = inconsistent_gen()
-        sap = rlsq.SAP1(usk.gaussian_operator, sampling_factor=3)
+        sap = rlsq.SPO3(usk.gaussian_operator, sampling_factor=3)
         self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
 
 
 class TestSAP2(TestOverLstsqSolver):
     """
-    Test SAP2 objects (sketch-and-precondition based on SVD).
+    Test SPO1 objects (sketch-and-precondition based on SVD).
 
     These objects are characterized by
         (1) the method they use to generate the sketching operator,
@@ -294,26 +294,26 @@ class TestSAP2(TestOverLstsqSolver):
     """
 
     def test_srct(self):
-        sap = rlsq.SAP2(usk.srct_operator,
+        sap = rlsq.SPO1(usk.srct_operator,
                         sampling_factor=3, smart_init=True)
         self.run_batch_sap(sap, 1e-8, 40, 100.0, 10.0)
         pass
 
     def test_gaussian(self):
-        sap = rlsq.SAP2(usk.gaussian_operator,
+        sap = rlsq.SPO1(usk.gaussian_operator,
                         sampling_factor=3, smart_init=True)
         self.run_batch_sap(sap, 1e-8, 40, 100.0, 10.0)
         sap.smart_init = False
         self.run_batch_sap(sap, 1e-8, 40, 100.0, 10.0)
 
     def test_sjlt(self):
-        sap = rlsq.SAP2(usk.sjlt_operator,
+        sap = rlsq.SPO1(usk.sjlt_operator,
                         sampling_factor=3, smart_init=True)
         self.run_batch_sap(sap, 1e-8, 40, 100.0, 10.0)
 
     def test_consistent_tall(self):
         ath = consistent_tall()
-        sap = rlsq.SAP2(usk.gaussian_operator, 3, smart_init=False)
+        sap = rlsq.SPO1(usk.gaussian_operator, 3, smart_init=False)
         self.run_consistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
         sap.sampling_factor = 1
         sap.smart_init = True
@@ -321,7 +321,7 @@ class TestSAP2(TestOverLstsqSolver):
 
     def test_consistent_lowrank(self):
         ath = consistent_lowrank()
-        sap = rlsq.SAP2(usk.gaussian_operator, 3, smart_init=False)
+        sap = rlsq.SPO1(usk.gaussian_operator, 3, smart_init=False)
         self.run_consistent(ath, sap, 0.0, 100, 1e-6, self.SEEDS)
         sap.sampling_factor = 1
         sap.smart_init = True
@@ -329,7 +329,7 @@ class TestSAP2(TestOverLstsqSolver):
 
     def test_consistent_square(self):
         ath = consistent_square()
-        sap = rlsq.SAP2(usk.gaussian_operator, 1, smart_init=False)
+        sap = rlsq.SPO1(usk.gaussian_operator, 1, smart_init=False)
         self.run_consistent(ath, sap, 0.0, 100, 1e-6, self.SEEDS)
         sap.sampling_factor = 1
         sap.smart_init = True
@@ -337,14 +337,14 @@ class TestSAP2(TestOverLstsqSolver):
 
     def test_inconsistent_orth(self):
         ath = inconsistent_orthog()
-        sap = rlsq.SAP2(usk.gaussian_operator, 3, smart_init=False)
+        sap = rlsq.SPO1(usk.gaussian_operator, 3, smart_init=False)
         self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
         sap.smart_init = True
         self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
 
     def test_inconsistent_gen(self):
         ath = inconsistent_gen()
-        sap = rlsq.SAP2(usk.gaussian_operator, 3, smart_init=False)
+        sap = rlsq.SPO1(usk.gaussian_operator, 3, smart_init=False)
         self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
         sap.smart_init = True
         self.run_inconsistent(ath, sap, 1e-12, 50, 1e-6, self.SEEDS)
@@ -366,19 +366,19 @@ class TestSAS(unittest.TestCase):
 
     def test_convergence_rate_gaussian(self):
         for seed in TestSAS.SEEDS:
-            sas = rlsq.SAS1(usk.gaussian_operator, np.NaN)
+            sas = rlsq.SSO1(usk.gaussian_operator, np.NaN)
             self._test_convergence_rate(sas, seed)
         pass
 
     def test_convergence_rate_srct(self):
         for seed in TestSAS.SEEDS:
-            sas = rlsq.SAS1(usk.srct_operator, np.NaN)
+            sas = rlsq.SSO1(usk.srct_operator, np.NaN)
             self._test_convergence_rate(sas, seed)
         pass
 
     def test_convergence_rate_sjlt(self):
         for seed in TestSAS.SEEDS:
-            sas = rlsq.SAS1(usk.sjlt_operator, np.NaN)
+            sas = rlsq.SSO1(usk.sjlt_operator, np.NaN)
             self._test_convergence_rate(sas, seed)
         pass
 
