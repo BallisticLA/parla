@@ -3,10 +3,18 @@ from scipy.linalg import solve_triangular
 from scipy.sparse import linalg as sparla
 
 from rlapy.comps.lsqr import lsqr
-from rlapy.comps.preconditioning import a_times_inv_r, lr_precond_gram
+from rlapy.comps.preconditioning import a_times_inv_r, lr_precond_gram, a_times_m
 
 
-def upper_tri_precond_lsqr(A, b, R, tol, iter_lim, x0=None):
+class IterSaddleSolver:
+
+    def __call__(self, A, b, c, delta, tol, iter_lim, M, z0):
+        """
+        """
+        raise NotImplementedError()
+
+
+def upper_tri_precond_lsqr(A, b, R, tol, iter_lim, z0=None):
     """
     Run preconditioned LSQR to obtain an approximate solution to
         min{ || A @ x - b ||_2 : x in R^n }
@@ -25,26 +33,23 @@ def upper_tri_precond_lsqr(A, b, R, tol, iter_lim, x0=None):
         Must be positive. Stopping criteria for LSQR.
     iter_lim : int
         Must be positive. Stopping criteria for LSQR.
-    x0 : Union[None, ndarray]
-        If provided, use as an initial approximate solution to (A'A) x = A' b.
-        Internally, we initialize preconditioned lsqr at y0 = R x0.
+    z0 : Union[None, ndarray]
+        If provided, use as an initial approximate solution to (Ap'Ap) x = Ap' b,
+        where Ap = A @ inv(R) is the preconditioned version of A.
     Returns
     -------
     The same values as SciPy's lsqr implementation.
     """
     A_pc = a_times_inv_r(A, R)
-    if x0 is not None:
-        y0 = (R @ x0).ravel()
-        result = lsqr(A_pc, b, atol=tol, btol=tol, iter_lim=iter_lim, x0=y0)
-    else:
-        result = lsqr(A_pc, b, atol=tol, btol=tol, iter_lim=iter_lim)
+    result = lsqr(A_pc, b, atol=tol, btol=tol, iter_lim=iter_lim, x0=z0)
     z = result[0]
     z = solve_triangular(R, z, lower=False, overwrite_b=True)
     result = (z,) + result[1:]
     return result
 
 
-def pinv_precond_lsqr(A, b, N, tol, iter_lim):
+def pinv_precond_lsqr(A, b, N, tol, iter_lim, z0=None):
+    #TODO: modify this so it accept an initial point
     """
     Run preconditioned LSQR to obtain an approximate solution to
         min{ || A @ x - b ||_2 : x in R^n }
@@ -68,37 +73,9 @@ def pinv_precond_lsqr(A, b, N, tol, iter_lim):
     -------
     The same values as SciPy's lsqr implementation.
     """
-    m, n = A.shape
-    work = np.zeros(n)
-
-    def mv(vec):
-        np.dot(N, vec, out=work)
-        return A @ work
-
-    def rmv(vec):
-        np.dot(A.T, vec, out=work)
-        return N.T @ work
-
-    if b.ndim == 1:
-        A_precond = sparla.LinearOperator(shape=(m, N.shape[1]),
-                                          matvec=mv, rmatvec=rmv)
-    if b.ndim == 2:
-        #TODO: write tests for this case
-        mat_work = np.zeros((n, b.shape[1]))
-
-        def mm(mat):
-            np.dot(N, mat, out=mat_work)
-            return A @ work
-
-        def rmm(mat):
-            np.dot(A.T, mat, out=mat_work)
-            return N.T @ work
-
-        A_precond = sparla.LinearOperator(shape=(m, N.shape[1]),
-                                          matvec=mv, rmatvec=rmv,
-                                          matmat=mm, rmatmat=rmm)
-
-    result = lsqr(A_precond, b, atol=tol, btol=tol, iter_lim=iter_lim)
+    k = 1 if b.ndim == 1 else b.shape[1]
+    A_precond = a_times_m(A, N, k)
+    result = lsqr(A_precond, b, atol=tol, btol=tol, iter_lim=iter_lim, x0=z0)
     result = (N @ result[0],) + result[1:]
     return result
 

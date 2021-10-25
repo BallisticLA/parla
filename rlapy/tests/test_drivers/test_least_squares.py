@@ -241,7 +241,7 @@ class TestSAP1(TestOverLstsqSolver):
     These objects are characterized by
         (1) the method they use to generate the sketching operator,
         (2) a parameter "sampling_factor", where for an m-by-n matrix
-            A, its sketching operator S is of shape (sampling_factor * m)-by-m.
+            A, its sketching operator S is of shape (sampling_factor * n)-by-m.
     """
 
     def test_srct(self):
@@ -287,7 +287,7 @@ class TestSAP2(TestOverLstsqSolver):
     These objects are characterized by
         (1) the method they use to generate the sketching operator,
         (2) a parameter "sampling_factor", where for an m-by-n matrix
-            A, its sketching operator S is of shape (sampling_factor * m)-by-m.
+            A, its sketching operator S is of shape (sampling_factor * n)-by-m.
         (3) a parameter "smart_init", which determines whether the
             algorithm tries to initialize its iterative solver at the 
             result given by sketch-and-solve.

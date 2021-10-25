@@ -34,6 +34,39 @@ def a_times_inv_r(A, R, k=1):
     return A_precond
 
 
+def a_times_m(A, M, k=1):
+    _m, n = A.shape
+    work = np.zeros(n)
+
+    def mv(vec):
+        np.dot(M, vec, out=work)
+        return A @ work
+
+    def rmv(vec):
+        np.dot(A.T, vec, out=work)
+        return M.T @ work
+
+    if k == 1:
+        A_precond = sparla.LinearOperator(shape=(_m, M.shape[1]),
+                                          matvec=mv, rmatvec=rmv)
+    else:
+        #TODO: write tests for this case
+        mat_work = np.zeros((n, k))
+
+        def mm(mat):
+            np.dot(M, mat, out=mat_work)
+            return A @ work
+
+        def rmm(mat):
+            np.dot(A.T, mat, out=mat_work)
+            return M.T @ work
+
+        A_precond = sparla.LinearOperator(shape=(_m, M.shape[1]),
+                                          matvec=mv, rmatvec=rmv,
+                                          matmat=mm, rmatmat=rmm)
+    return A_precond
+
+
 def lr_precond_gram(A, R):
     """Return a linear operator that represents (A @ inv(R)).T @ (A @ inv(R))"""
     #TODO: provide matmat and rmatmat implementations
@@ -52,5 +85,3 @@ def lr_precond_gram(A, R):
     AtA_precond = sparla.LinearOperator(shape=(A.shape[1], A.shape[1]),
                                         matvec=mv, rmatvec=mv)
     return AtA_precond
-
-

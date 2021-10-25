@@ -218,17 +218,17 @@ class SAP1(OverLstsqSolver):
         # Sketch-and-solve type preprocessing
         tic = time.time() if logging else 0
         b_ske = S @ b
-        x_ske = la.solve_triangular(R, Q.T @ b_ske, lower=False)
-        x0 = None
-        if np.linalg.norm(A @ x_ske - b) < np.linalg.norm(b):
-            x0 = x_ske
+        z_ske = Q.T @ b_ske
+        x_ske = la.solve_triangular(R, z_ske, lower=False)
+        if np.linalg.norm(A @ x_ske - b) >= np.linalg.norm(b):
+            z_ske = None
         toc = time.time() if logging else 0
         time_presolve = toc - tic
         self.log['time_presolve'] = time_presolve
 
         # Iterative phase
         tic = time.time() if logging else 0
-        res = rlapy.comps.itersaddle.upper_tri_precond_lsqr(A, b, R, tol, iter_lim, x0=x0)
+        res = rlapy.comps.itersaddle.upper_tri_precond_lsqr(A, b, R, tol, iter_lim, z_ske)
         toc = time.time() if logging else 0
         time_iterate = toc - tic
         self.log['time_iterate'] = time_iterate
@@ -328,45 +328,31 @@ class SAP2(OverLstsqSolver):
         self.log['time_factor'] = toc - tic
 
         if self.smart_init:
-            # Sketch-and-solve type preprocessing
-            #   This isn't necessarily preferable, because it changes the
-            #   norm of b, which affects termination criteria.
             tic = time.time() if logging else 0
             b_ske = S @ b
-            x_ske = N @ (U[:, :rank].T @ b_ske)
+            z_ske = U[:, :rank].T @ b_ske
+            x_ske = N @ z_ske
             b_remainder = b - A @ x_ske
-            success = la.norm(b_remainder, ord=2) < la.norm(b, ord=2)
+            if la.norm(b_remainder, ord=2) >= la.norm(b, ord=2):
+                z_ske = None
             toc = time.time() if logging else 0
             self.log['time_presolve'] = toc - tic
 
-            # Iterative phase
-            if success:
-                # x_ske is a better starting point than the zero vector.
-                tic = time.time() if logging else 0
-                res = rlapy.comps.itersaddle.pinv_precond_lsqr(A, b_remainder,
-                                                               N, tol, iter_lim)
-                x_star = res[0]
-                x_star = x_star + x_ske
-                toc = time.time() if logging else 0
-                self.log['time_iterate'] = toc - tic
-            else:
-                # The zero vector is at least as good as x_ske.
-                tic = time.time() if logging else 0
-                res = rlapy.comps.itersaddle.pinv_precond_lsqr(A, b, N, tol, iter_lim)
-                toc = time.time() if logging else 0
-                self.log['time_iterate'] = toc - tic
-                x_star = res[0]
+            tic = time.time() if logging else 0
+            res = rlapy.comps.itersaddle.pinv_precond_lsqr(A, b, N, tol, iter_lim, z_ske)
+            toc = time.time() if logging else 0
+            self.log['time_iterate'] = toc - tic
+            x_star = res[0]
         else:
             # No presolve
             self.log['time_presolve'] = 0
 
             # Iterative phase
             tic = time.time() if logging else 0
-            res = rlapy.comps.itersaddle.pinv_precond_lsqr(A, b, N, tol, iter_lim)
+            res = rlapy.comps.itersaddle.pinv_precond_lsqr(A, b, N, tol, iter_lim, None)
             toc = time.time() if logging else 0
             self.log['time_iterate'] = toc - tic
             x_star = res[0]
-
         iters = res[2]
         # Record a vector of cumulative times to (1) sketch and factor, and
         # (2) take an individual step in LSQR (amortized!).
