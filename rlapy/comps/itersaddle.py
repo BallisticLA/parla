@@ -13,12 +13,6 @@ class IterSaddleSolver:
         """
         raise NotImplementedError()
 
-"""
-NOTE: there's very little reason to distinguish between how the preconditioner
-is structured in the lsqr wrappers below. How about just about just add a flag
-for if the preconditioner is specified by an upper-triangular matrix. 
-"""
-
 
 def precond_lsqr(A, b, c, delta, tol, iter_lim, R, upper_tri, z0=None):
     """TODO: update docstring for saddle point system.
@@ -29,37 +23,37 @@ def precond_lsqr(A, b, c, delta, tol, iter_lim, R, upper_tri, z0=None):
     Parameters
     ----------
     A : ndarray
-        Data matrix with m rows and n columns. Columns are presumed linearly
-        independent (for now).
+        Data matrix with m rows and n columns.
     b : ndarray
         Right-hand-side. b.shape = (m,) or b.shape = (m, k).
     c : ndarray
         ....
     delta : float
         ...
-    R : ndarray
-        The upper-triangular preconditioner, has R.shape = (n, n).
     tol : float
         Must be positive. Stopping criteria for LSQR.
     iter_lim : int
         Must be positive. Stopping criteria for LSQR.
+    R : ndarray
+        Defines the preconditioner, has R.shape = (n, n).
+    upper_tri : bool
+        If upper_tri is True, then precondition by M = inv(R).
+        If upper_tri is False, then precondition by M = R.
     z0 : Union[None, ndarray]
         If provided, use as an initial approximate solution to (Ap'Ap) x = Ap' b,
-        where Ap = A @ inv(R) is the preconditioned version of A.
-        :param upper_tri:
+        where Ap = A @ M is the preconditioned version of A.
     """
     assert c is None or la.norm(c) == 0
-    assert delta == 0
     k = 1 if b.ndim == 1 else b.shape[1]
 
+    # TODO: modify the gen_pc functions to handle delta > 0
+    gen_pc = a_times_inv_r if upper_tri else a_times_m
+    A_pc = gen_pc(A, delta, R, k)
+    result = lsqr(A_pc, b, atol=tol, btol=tol, iter_lim=iter_lim, x0=z0)
     if upper_tri:
-        A_pc = a_times_inv_r(A, R, k)
-        result = lsqr(A_pc, b, atol=tol, btol=tol, iter_lim=iter_lim, x0=z0)
         z = result[0]
         x = la.solve_triangular(R, z, lower=False, overwrite_b=True)
     else:
-        A_pc = a_times_m(A, R, k)
-        result = lsqr(A_pc, b, atol=tol, btol=tol, iter_lim=iter_lim, x0=z0)
         x = R @ result[0]
 
     result = (x,) + result[1:]
