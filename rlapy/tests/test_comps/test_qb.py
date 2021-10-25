@@ -24,6 +24,7 @@ def wide_low_exact_rank():
     ath = AlgTestHelper(A, U, s, Vt)
     return ath
 
+
 def tall_full_exact_rank():
     m, n, k = 200, 50, 50
     rng = np.random.default_rng(89374539423)
@@ -39,12 +40,15 @@ def wide_full_exact_rank():
     ath = AlgTestHelper(A, U, s, Vt)
     return ath
 
+
 """
 Below, "decay" refers to decay of singular values of an input matrix.
 
 Decreasing the spectrum_param eventually results in an ill-conditioned matrix & tests failing
 (wrong approximation accuracy and rank of B).
 """
+
+
 def fast_decay_low_exact_rank():
     m, n, k, spectrum_param = 200, 50, 15, 2
     rng = np.random.default_rng(89374539423)
@@ -107,13 +111,13 @@ class AlgTestHelper:
         nrm = la.norm(delta, ord='fro')
         self.tester.assertLessEqual(nrm, fro_tol)
 
-    # Check if B is fullrank - rather rudimentary; catches the case when rank is overestimated.
     def test_exact_rank_B(self):
+        # Check if B is fullrank - rather rudimentary; catches the case when rank is overestimated.
         Q, B = self.QB
         self.tester.assertEqual(np.linalg.matrix_rank(B), min(B.shape)) 
 
-    # Check if the matrix A has been unchanged
     def test_unchanged_A(self, A_copy):
+        # Check if the matrix A has been unchanged
         self.tester.assertEqual(la.norm(self.A, ord='fro'), la.norm(A_copy, ord='fro')) 
 
 
@@ -153,7 +157,8 @@ class TestQBFactorizer(unittest.TestCase):
 
 
 # Below tests are mainly "universal" among different types of QB =>
-# still need to produce more algorithm-specific tests. 
+
+# still need to produce more algorithm-specific tests.
 class TestQB1(TestQBFactorizer):
 
     def test_exact(self):
@@ -232,7 +237,6 @@ class TestQB1(TestQBFactorizer):
         ath7 = wide_full_exact_rank()
         alg_rank = ath7.s.size
         self.run_batch_exact(ath7, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-
 
     def test_overestimate(self):
         alg = rqb.QB1(rqb.RF1(rsks.RS1(
@@ -379,7 +383,6 @@ class TestQB2(TestQBFactorizer):
         ath7 = wide_full_exact_rank()
         alg_rank = ath7.s.size
         self.run_batch_exact(ath7, alg, alg_rank, alg_tol, test_tol, self.SEEDS)
-
 
     def test_overestimate(self):
         alg = rqb.QB2(

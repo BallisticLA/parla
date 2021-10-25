@@ -9,6 +9,8 @@ Routines for (approximately) solving over-determined least squares problems
 import warnings
 import scipy.linalg as la
 import numpy as np
+
+import rlapy.comps.itersaddle
 import rlapy.comps.preconditioning as pc
 import time
 
@@ -226,7 +228,7 @@ class SAP1(OverLstsqSolver):
 
         # Iterative phase
         tic = time.time() if logging else 0
-        res = pc.upper_tri_precond_lsqr(A, b, R, tol, iter_lim, x0=x0)
+        res = rlapy.comps.itersaddle.upper_tri_precond_lsqr(A, b, R, tol, iter_lim, x0=x0)
         toc = time.time() if logging else 0
         time_iterate = toc - tic
         self.log['time_iterate'] = time_iterate
@@ -341,8 +343,8 @@ class SAP2(OverLstsqSolver):
             if success:
                 # x_ske is a better starting point than the zero vector.
                 tic = time.time() if logging else 0
-                res = pc.pinv_precond_lsqr(A, b_remainder,
-                                           N, tol, iter_lim)
+                res = rlapy.comps.itersaddle.pinv_precond_lsqr(A, b_remainder,
+                                                               N, tol, iter_lim)
                 x_star = res[0]
                 x_star = x_star + x_ske
                 toc = time.time() if logging else 0
@@ -350,7 +352,7 @@ class SAP2(OverLstsqSolver):
             else:
                 # The zero vector is at least as good as x_ske.
                 tic = time.time() if logging else 0
-                res = pc.pinv_precond_lsqr(A, b, N, tol, iter_lim)
+                res = rlapy.comps.itersaddle.pinv_precond_lsqr(A, b, N, tol, iter_lim)
                 toc = time.time() if logging else 0
                 self.log['time_iterate'] = toc - tic
                 x_star = res[0]
@@ -360,7 +362,7 @@ class SAP2(OverLstsqSolver):
 
             # Iterative phase
             tic = time.time() if logging else 0
-            res = pc.pinv_precond_lsqr(A, b, N, tol, iter_lim)
+            res = rlapy.comps.itersaddle.pinv_precond_lsqr(A, b, N, tol, iter_lim)
             toc = time.time() if logging else 0
             self.log['time_iterate'] = toc - tic
             x_star = res[0]
