@@ -3,6 +3,7 @@ import rlapy.drivers as drivers
 import rlapy.utils as utils
 import rlapy.tests as tests
 
+__version__ = '0.1.1'
 
 from rlapy.utils.sketching import gaussian_operator, srct_operator, \
     sjlt_operator, sparse_sign_operator, orthonormal_operator
