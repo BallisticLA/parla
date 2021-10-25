@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.linalg import solve_triangular
+import scipy.linalg as la
 from scipy.sparse import linalg as sparla
 
 from rlapy.comps.lsqr import lsqr
@@ -13,9 +13,15 @@ class IterSaddleSolver:
         """
         raise NotImplementedError()
 
+"""
+NOTE: there's very little reason to distinguish between how the preconditioner
+is structured in the lsqr wrappers below. How about just about just add a flag
+for if the preconditioner is specified by an upper-triangular matrix. 
+"""
 
-def upper_tri_precond_lsqr(A, b, R, tol, iter_lim, z0=None):
-    """
+
+def precond_lsqr(A, b, c, delta, tol, iter_lim, R, upper_tri, z0=None):
+    """TODO: update docstring for saddle point system.
     Run preconditioned LSQR to obtain an approximate solution to
         min{ || A @ x - b ||_2 : x in R^n }
     where A.shape = (m, n) has m >> n, so the problem is over-determined.
@@ -27,6 +33,10 @@ def upper_tri_precond_lsqr(A, b, R, tol, iter_lim, z0=None):
         independent (for now).
     b : ndarray
         Right-hand-side. b.shape = (m,) or b.shape = (m, k).
+    c : ndarray
+        ....
+    delta : float
+        ...
     R : ndarray
         The upper-triangular preconditioner, has R.shape = (n, n).
     tol : float
@@ -36,47 +46,23 @@ def upper_tri_precond_lsqr(A, b, R, tol, iter_lim, z0=None):
     z0 : Union[None, ndarray]
         If provided, use as an initial approximate solution to (Ap'Ap) x = Ap' b,
         where Ap = A @ inv(R) is the preconditioned version of A.
-    Returns
-    -------
-    The same values as SciPy's lsqr implementation.
+        :param upper_tri:
     """
-    A_pc = a_times_inv_r(A, R)
-    result = lsqr(A_pc, b, atol=tol, btol=tol, iter_lim=iter_lim, x0=z0)
-    z = result[0]
-    z = solve_triangular(R, z, lower=False, overwrite_b=True)
-    result = (z,) + result[1:]
-    return result
-
-
-def pinv_precond_lsqr(A, b, N, tol, iter_lim, z0=None):
-    #TODO: modify this so it accept an initial point
-    """
-    Run preconditioned LSQR to obtain an approximate solution to
-        min{ || A @ x - b ||_2 : x in R^n }
-    where A.shape = (m, n) has m >> n, so the problem is over-determined.
-
-    Parameters
-    ----------
-    A : ndarray
-        Data matrix with m rows and n columns.
-    b : ndarray
-        Right-hand-side b.shape = (m,) or b.shape = (m, k).
-    N : ndarray
-        The condition number of A @ N should be near one and its rank should be
-        the same as that of A.
-    tol : float
-        Must be positive. Stopping criteria for LSQR.
-    iter_lim : int
-        Must be positive. Stopping criteria for LSQR.
-
-    Returns
-    -------
-    The same values as SciPy's lsqr implementation.
-    """
+    assert c is None or la.norm(c) == 0
+    assert delta == 0
     k = 1 if b.ndim == 1 else b.shape[1]
-    A_precond = a_times_m(A, N, k)
-    result = lsqr(A_precond, b, atol=tol, btol=tol, iter_lim=iter_lim, x0=z0)
-    result = (N @ result[0],) + result[1:]
+
+    if upper_tri:
+        A_pc = a_times_inv_r(A, R, k)
+        result = lsqr(A_pc, b, atol=tol, btol=tol, iter_lim=iter_lim, x0=z0)
+        z = result[0]
+        x = la.solve_triangular(R, z, lower=False, overwrite_b=True)
+    else:
+        A_pc = a_times_m(A, R, k)
+        result = lsqr(A_pc, b, atol=tol, btol=tol, iter_lim=iter_lim, x0=z0)
+        x = R @ result[0]
+
+    result = (x,) + result[1:]
     return result
 
 
@@ -110,7 +96,7 @@ def upper_tri_precond_cg(A, b, R, tol, iter_lim, x0=None):
     """
     #TODO: write tests
     AtA_precond = lr_precond_gram(A, R)
-    b_precond = solve_triangular(R, b, 'T', lower=False, check_finite=False)
+    b_precond = la.solve_triangular(R, b, 'T', lower=False, check_finite=False)
     if x0 is not None:
         y0 = (R @ x0).ravel()
         result = sparla.cg(AtA_precond, b_precond, atol=tol, btol=tol,
@@ -119,6 +105,6 @@ def upper_tri_precond_cg(A, b, R, tol, iter_lim, x0=None):
         result = sparla.cg(AtA_precond, b_precond, atol=tol, btol=tol,
                            iter_lim=iter_lim)
     z = result[0]
-    z = solve_triangular(R, z, lower=False, overwrite_b=True)
+    z = la.solve_triangular(R, z, lower=False, overwrite_b=True)
     result = (z,) + result[1:]
     return result
