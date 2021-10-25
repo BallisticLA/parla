@@ -179,6 +179,7 @@ class SAP1(OverLstsqSolver):
         self.sketch_op_gen = sketch_op_gen
         self.sampling_factor = sampling_factor
         self.raw_res = None
+        self.iterative_solver = ris.PcSS2()  # implements LSQR
         # This implementation has the option of logging detailed information
         # on runtime and the rate at which (preconditioned) normal equation
         # error decays while LSQR runs. This isn't part of the public API
@@ -227,7 +228,7 @@ class SAP1(OverLstsqSolver):
 
         # Iterative phase
         tic = time.time() if logging else 0
-        res = ris.precond_lsqr(A, b, None, 0.0, tol, iter_lim, R, True, z_ske)
+        res = self.iterative_solver(A, b, None, 0.0, tol, iter_lim, R, True, z_ske)
         toc = time.time() if logging else 0
         time_iterate = toc - tic
         self.log['time_iterate'] = time_iterate
@@ -286,6 +287,7 @@ class SAP2(OverLstsqSolver):
         self.sketch_op_gen = sketch_op_gen
         self.sampling_factor = sampling_factor
         self.smart_init = smart_init
+        self.iterative_solver = ris.PcSS2()  # LSQR
         # This implementation has the option of logging detailed information
         # on runtime and the rate at which (preconditioned) normal equation
         # error decays while LSQR runs. This isn't part of the public API
@@ -338,7 +340,7 @@ class SAP2(OverLstsqSolver):
             self.log['time_presolve'] = toc - tic
 
             tic = time.time() if logging else 0
-            res = ris.precond_lsqr(A, b, None, 0.0, tol, iter_lim, N, False, z_ske)
+            res = self.iterative_solver(A, b, None, 0.0, tol, iter_lim, N, False, z_ske)
             toc = time.time() if logging else 0
             self.log['time_iterate'] = toc - tic
             x_star = res[0]
@@ -348,7 +350,7 @@ class SAP2(OverLstsqSolver):
 
             # Iterative phase
             tic = time.time() if logging else 0
-            res = ris.precond_lsqr(A, b, None, 0.0, tol, iter_lim, N, False, None)
+            res = self.iterative_solver(A, b, None, 0.0, tol, iter_lim, N, False, None)
             toc = time.time() if logging else 0
             self.log['time_iterate'] = toc - tic
             x_star = res[0]

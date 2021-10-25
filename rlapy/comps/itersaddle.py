@@ -6,75 +6,78 @@ from rlapy.comps.lsqr import lsqr
 from rlapy.comps.preconditioning import a_times_inv_r, lr_precond_gram, a_times_m
 
 
-class IterSaddleSolver:
+class PrecondSaddleSolver:
 
-    def __call__(self, A, b, c, delta, tol, iter_lim, M, z0):
-        """
+    def __call__(self, A, b, c, delta, tol, iter_lim, R, upper_tri, z0):
+        """TODO: update docstring for saddle point system.
+        Run preconditioned LSQR to obtain an approximate solution to
+            min{ || A @ x - b ||_2 : x in R^n }
+        where A.shape = (m, n) has m >> n, so the problem is over-determined.
+
+        Parameters
+        ----------
+        A : ndarray
+            Data matrix with m rows and n columns.
+        b : ndarray
+            Right-hand-side. b.shape = (m,) or b.shape = (m, k).
+        c : ndarray
+            ....
+        delta : float
+            ...
+        tol : float
+            Must be positive. Stopping criteria for LSQR.
+        iter_lim : int
+            Must be positive. Stopping criteria for LSQR.
+        R : ndarray
+            Defines the preconditioner, has R.shape = (n, n).
+        upper_tri : bool
+            If upper_tri is True, then precondition by M = inv(R).
+            If upper_tri is False, then precondition by M = R.
+        z0 : Union[None, ndarray]
+            If provided, use as an initial approximate solution to (Ap'Ap) x = Ap' b,
+            where Ap = A @ M is the preconditioned version of A.
         """
         raise NotImplementedError()
 
 
-def precond_lsqr(A, b, c, delta, tol, iter_lim, R, upper_tri, z0=None):
-    """TODO: update docstring for saddle point system.
-    Run preconditioned LSQR to obtain an approximate solution to
-        min{ || A @ x - b ||_2 : x in R^n }
-    where A.shape = (m, n) has m >> n, so the problem is over-determined.
+class PcSS2(PrecondSaddleSolver):
 
-    Parameters
-    ----------
-    A : ndarray
-        Data matrix with m rows and n columns.
-    b : ndarray
-        Right-hand-side. b.shape = (m,) or b.shape = (m, k).
-    c : ndarray
-        ....
-    delta : float
-        ...
-    tol : float
-        Must be positive. Stopping criteria for LSQR.
-    iter_lim : int
-        Must be positive. Stopping criteria for LSQR.
-    R : ndarray
-        Defines the preconditioner, has R.shape = (n, n).
-    upper_tri : bool
-        If upper_tri is True, then precondition by M = inv(R).
-        If upper_tri is False, then precondition by M = R.
-    z0 : Union[None, ndarray]
-        If provided, use as an initial approximate solution to (Ap'Ap) x = Ap' b,
-        where Ap = A @ M is the preconditioned version of A.
-    """
-    m, n = A.shape
-    k = 1 if b.ndim == 1 else b.shape[1]
-    if upper_tri:
-        A_pc = a_times_inv_r(A, delta, R, k)
-        M = lambda z: la.solve_triangular(R, z, lower=False)
-    else:
-        A_pc = a_times_m(A, delta, R, k)
-        M = lambda z: R @ z
+    def __call__(self, A, b, c, delta, tol, iter_lim, R, upper_tri, z0):
+        m, n = A.shape
+        k = 1 if b.ndim == 1 else b.shape[1]
 
-    if c is None or la.norm(c) == 0:
-        if delta > 0:
-            b = np.concatenate((b, np.zeros(n)))
-        result = lsqr(A_pc, b, atol=tol, btol=tol, iter_lim=iter_lim, x0=z0)
-        x = M(result[0])
-        y = b[:m] - A @ x
-        result = (x, y) + result[1:]
-        return result
-
-    elif b is None or la.norm(b) == 0:
-        c_pc = M(c)
-        result = lsqr(A_pc.T, c_pc, atol=tol, btol=tol, iter_lim=iter_lim)
-        y = result[0]
-        if delta > 0:
-            y = y[:m]
-            x = (c - A.T @ y) / delta
+        if upper_tri:
+            A_pc = a_times_inv_r(A, delta, R, k)
+            M_func = lambda z: la.solve_triangular(R, z, lower=False)
         else:
-            x = np.NaN * np.empty(n)
-        result = (x, y) + result[1:]
-        return result
+            A_pc = a_times_m(A, delta, R, k)
+            M_func = lambda z: R @ z
 
-    else:
-        raise ValueError('One of "b" or "c" must be zero.')
+        if c is None or la.norm(c) == 0:
+            # Overdetermined least squares
+            if delta > 0:
+                b = np.concatenate((b, np.zeros(n)))
+            result = lsqr(A_pc, b, atol=tol, btol=tol, iter_lim=iter_lim, x0=z0)
+            x = M_func(result[0])
+            y = b[:m] - A @ x
+            result = (x, y) + result[1:]
+            return result
+
+        elif b is None or la.norm(b) == 0:
+            # Underdetermined least squares
+            c_pc = M_func(c)
+            result = lsqr(A_pc.T, c_pc, atol=tol, btol=tol, iter_lim=iter_lim)
+            y = result[0]
+            if delta > 0:
+                y = y[:m]
+                x = (c - A.T @ y) / delta
+            else:
+                x = np.NaN * np.empty(n)
+            result = (x, y) + result[1:]
+            return result
+
+        else:
+            raise ValueError('One of "b" or "c" must be zero.')
 
 
 def upper_tri_precond_cg(A, b, R, tol, iter_lim, x0=None):
