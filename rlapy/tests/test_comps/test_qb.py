@@ -121,13 +121,13 @@ class AlgTestHelper:
         self.tester.assertEqual(la.norm(self.A, ord='fro'), la.norm(A_copy, ord='fro')) 
 
 
-class TestQBFactorizer(unittest.TestCase):
+class TestQBDecomposer(unittest.TestCase):
 
     SEEDS = [1, 4, 15, 31, 42]
 
     @staticmethod
     def run_batch_exact(ath: AlgTestHelper,
-                        alg: rqb.QBFactorizer,
+                        alg: rqb.QBDecomposer,
                         target_rank, target_tol,
                         test_tol, seeds):
         for seed in seeds:
@@ -143,9 +143,9 @@ class TestQBFactorizer(unittest.TestCase):
     # Same as above - rank(B) test.
     @staticmethod
     def run_batch_estimated(ath: AlgTestHelper,
-                        alg: rqb.QBFactorizer,
-                        target_rank, target_tol,
-                        test_tol, seeds):
+                            alg: rqb.QBDecomposer,
+                            target_rank, target_tol,
+                            test_tol, seeds):
         for seed in seeds:
             rng = np.random.default_rng(seed)
             # Call the QB algorithm, store results in AlgTestHelper.
@@ -159,7 +159,7 @@ class TestQBFactorizer(unittest.TestCase):
 # Below tests are mainly "universal" among different types of QB =>
 
 # still need to produce more algorithm-specific tests.
-class TestQB1(TestQBFactorizer):
+class TestQB1(TestQBDecomposer):
 
     def test_exact(self):
         alg = rqb.QB1(rqb.RF1(rsks.RS1(
@@ -262,7 +262,7 @@ class TestQB1(TestQBFactorizer):
             self.run_batch_estimated(ath2, alg, alg_rank_overestimated, alg_tol, test_tol, self.SEEDS)   
 
 
-class TestQB2(TestQBFactorizer):
+class TestQB2(TestQBDecomposer):
 
     def test_exact(self):
         alg = rqb.QB2(
@@ -411,7 +411,7 @@ class TestQB2(TestQBFactorizer):
             self.run_batch_estimated(ath2, alg, alg_rank_overestimated, alg_tol, test_tol, self.SEEDS)
 
 
-class TestQB3(TestQBFactorizer):
+class TestQB3(TestQBDecomposer):
     def test_exact(self):
         alg = rqb.QB3(
             sk_op=rqb.RS1(

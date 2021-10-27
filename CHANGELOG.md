@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     * "SPO": Sketch-and-Precondition for Overdetermined least squares
     * SAS1 --> SPO3 (name used in the design doc)
     * SAS2 --> SPO1 (name used in the design doc)
+ - comps: renamed QBFactorizer to QBDecomposer (similarly for TestQBFactorizer)
 
 # [0.1.0] - superseded on Oct 25, 2021
 ## Added
