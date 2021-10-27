@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # [0.1.1] - working version
 ## Added
- - drivers: Sketch-and-Precondition for Saddle point systems (SPS2)
+ - drivers: Sketch-and-Precondition for Saddle point systems (SPS2, name used in design doc)
 ## Changed
  - drivers: class names for least squares
     * "SPO": Sketch-and-Precondition for Overdetermined least squares

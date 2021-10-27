@@ -4,32 +4,20 @@ import numpy as np
 
 
 def a_lift(A, scale):
-    m, n = A.shape
-
     if scale == 0:
         return A
     else:
-        def forward(arg):
-            shape = (m + n,) if arg.ndim == 1 else (m + n, arg.shape[1])
-            out = np.empty(shape=shape)
-            out[:m] = A @ arg
-            out[m:] = scale * arg
-            return out
-
-        def adjoint(arg):
-            out = A.T @ arg
-            out += scale * arg
-            return out
-
-        A_lift = sparla.LinearOperator(shape=(m + n, n),
-                                       matvec=forward, rmatvec=forward,
-                                       matmat=forward, rmatmat=adjoint)
-        return A_lift
+        A = np.row_stack((A, scale*np.eye(A.shape[1])))
+        # Explicitly augmenting A seems like overkill.
+        # However, it's faster than the LinearOperator approach I tried.
+        return A
 
 
 def a_times_inv_r(A, delta, R, k=1):
     """Return a linear operator that represents [A; sqrt(delta)*I] @ inv(R)
     """
+    if k != 1:
+        raise NotImplementedError()
 
     sqrt_delta = np.sqrt(delta)
     A_lift = a_lift(A, sqrt_delta)
@@ -41,41 +29,28 @@ def a_times_inv_r(A, delta, R, k=1):
         out = A_lift @ work
         return out
 
-    if isinstance(A, sparla.LinearOperator):
-
-        def adjoint(arg, work):
-            work = A_lift.T @ arg
-            out = solve_triangular(R, work, 'T', lower=False, check_finite=False)
-            return out
-    else:
-
-        def adjoint(arg, work):
-            np.dot(A.T, arg, out=work)
-            if delta > 0:
-                work += sqrt_delta * arg
-            out = solve_triangular(R, work, 'T', lower=False, check_finite=False)
-            return out
+    def adjoint(arg, work):
+        np.dot(A.T, arg, out=work)
+        if delta > 0:
+            work += sqrt_delta * arg
+        out = solve_triangular(R, work, 'T', lower=False, check_finite=False)
+        return out
 
     vec_work = np.zeros(A.shape[1])
     mv = lambda vec: forward(vec, vec_work)
     rmv = lambda vec: adjoint(vec, vec_work)
+    # if k != 1 then we'd need to allocate workspace differently.
+    # (And maybe use workspace differently.)
 
-    if k == 1:
-        A_precond = sparla.LinearOperator(shape=A.shape,
-                                          matvec=mv, rmatvec=rmv)
-    else:
-        #TODO: write tests for this case
-        mat_work = np.zeros(A.shape[1], k)
-        mm = lambda mat: forward(mat, mat_work)
-        rmm = lambda mat: adjoint(mat, mat_work)
-        A_precond = sparla.LinearOperator(shape=A.shape,
-                                          matvec=mv, rmatvec=rmv,
-                                          matmat=mm, rmatmat=rmm)
+    A_precond = sparla.LinearOperator(shape=A.shape,
+                                      matvec=mv, rmatvec=rmv)
     return A_precond
 
 
 def a_times_m(A, delta, M, k=1):
-    m, n = A.shape
+    if k != 1:
+        raise NotImplementedError()
+
     sqrt_delta = np.sqrt(delta)
     A_lift = a_lift(A, sqrt_delta)
 
@@ -90,21 +65,14 @@ def a_times_m(A, delta, M, k=1):
             work += sqrt_delta * arg
         return M.T @ work
 
-    vec_work = np.zeros(n)
+    vec_work = np.zeros(A.shape[1])
     mv = lambda x: forward(x, vec_work)
     rmv = lambda y: adjoint(y, vec_work)
+    # if k != 1 then we'd need to allocate workspace differently.
+    # (And maybe use workspace differently.)
 
-    if k == 1:
-        A_precond = sparla.LinearOperator(shape=(m, M.shape[1]),
-                                          matvec=mv, rmatvec=rmv)
-    else:
-        #TODO: write tests for this case
-        mat_work = np.zeros((n, k))
-        mm = lambda mat: forward(mat, mat_work)
-        rmm = lambda mat: adjoint(mat, mat_work)
-        A_precond = sparla.LinearOperator(shape=(m, M.shape[1]),
-                                          matvec=mv, rmatvec=rmv,
-                                          matmat=mm, rmatmat=rmm)
+    A_precond = sparla.LinearOperator(shape=(A.shape[0], M.shape[1]),
+                                      matvec=mv, rmatvec=rmv)
     return A_precond
 
 

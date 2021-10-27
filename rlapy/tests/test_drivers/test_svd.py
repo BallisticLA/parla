@@ -1,10 +1,8 @@
 import unittest
-
 import numpy as np
 import scipy.linalg as la
 import rlapy.drivers.svd as rsvd
 import rlapy.comps.qb as rqb
-import rlapy.comps.rangefinders as rrf
 import rlapy.comps.sketchers as rsks
 import rlapy.utils.sketching as usk
 import rlapy.utils.linalg_wrappers as ulaw

@@ -69,21 +69,21 @@ def inconsistent_orthog():
 def inconsistent_gen():
     seed = 897809809
     rng = np.random.default_rng(seed)
-    n, m = 1000, 100
+    m, n = 1000, 100
     num_hi = 30
-    num_lo = m - num_hi
+    num_lo = n - num_hi
     # Make A
     hi_spec = 1e5 * np.ones(num_hi) + rng.random(num_hi)
     lo_spec = np.ones(num_lo) + rng.random(num_lo)
     spec = np.concatenate([hi_spec, lo_spec])
-    U = usk.orthonormal_operator(n, m, rng)
-    Vt = usk.orthonormal_operator(m, m, rng)
+    U = usk.orthonormal_operator(m, n, rng)
+    Vt = usk.orthonormal_operator(n, n, rng)
     A = (U * spec) @ Vt
     # Make b
     hi_x = rng.standard_normal(num_hi)/1e5
     lo_x = rng.standard_normal(num_lo)
     x = np.concatenate([hi_x, lo_x])
-    b_orth = rng.standard_normal(n) * 1e2
+    b_orth = rng.standard_normal(m) * 1e2
     b_orth -= U @ (U.T @ b_orth)  # orthogonal to range(A)
     b = A @ x + b_orth
     # Return
@@ -96,6 +96,7 @@ TODO: update these tests to take advantage of logging in least-squares drivers.
 The logging will let us test convergence rates without having to re-run the algorithm
 many times.
 """
+
 
 class AlgTestHelper:
 
@@ -131,7 +132,7 @@ class AlgTestHelper:
         (1 - tol)*||x_opt|| <= ||x|| <= (1+tol)*||x_opt|| + tol
         """
         norm = la.norm(self.Vt @ self.x_approx)
-        norm_opt = la.norm(self.Vt @ self.x_approx)
+        norm_opt = la.norm(self.Vt @ self.x_opt)
         self.tester.assertLessEqual(norm, (1+tol)*norm_opt + tol)
         self.tester.assertLessEqual((1-tol)*norm_opt, norm)
 
