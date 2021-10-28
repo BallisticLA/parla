@@ -198,7 +198,7 @@ class SPO3(OverLstsqSolver):
         rng = np.random.default_rng(rng)
         
         if logging:
-            quick_time = time.time()
+            quick_time = time.time
         else:
             quick_time = lambda: 0.0
 
@@ -307,7 +307,7 @@ class SPO1(OverLstsqSolver):
         rng = np.random.default_rng(rng)
 
         if logging:
-            quick_time = time.time()
+            quick_time = time.time
         else:
             quick_time = lambda: 0.0
 

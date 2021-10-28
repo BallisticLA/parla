@@ -44,7 +44,7 @@ class SPS2(SaddleSolver):
             b = np.zeros(m)
 
         if logging:
-            quick_time = time.time()
+            quick_time = time.time
         else:
             quick_time = lambda: 0.0
 
