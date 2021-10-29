@@ -33,7 +33,7 @@ def evd1(num_passes, A, k, epsilon, s, rng):
         Total number of passes over A. We require num_passes >= 2.
 
     A : Union[ndarray, spmatrix, LinearOperator]
-        Data matrix to approximate.
+        Data matrix to approximate. A must be an n × n Hermitian matrix.
 
     k : int
         Target rank for the approximation of A: 0 < k < min(A.shape).
@@ -43,6 +43,10 @@ def evd1(num_passes, A, k, epsilon, s, rng):
         
     epsilon : float
         Target accuracy for the oversampled approximation of A: 0 < epsilon < np.inf.
+        This parameter inherits from the QBDecomposer or RangeFinder class.
+        
+    s  : int
+        Auxiliary parameter for the QBDecomposer or RangeFinder.
 
     rng : Union[None, int, SeedSequence, BitGenerator, Generator]
         Determines the numpy Generator object that manages randomness
@@ -74,29 +78,37 @@ def evd1(num_passes, A, k, epsilon, s, rng):
         (available at `arXiv <http://arxiv.org/abs/0909.4061>`_).
     EVDecomposer: adapted from the QB-based [HMT11, Algorithm 5.3]
     """
-
+    if not (A == A.T).all():
+        #Needs to consider conjugate as well if A contains complex numbers.
+        msg = """
+        This rountine evd1 only works for Hermitian matrices.
+        """ 
+        raise RuntimeError(msg)
     rng = np.random.default_rng(rng)
     rso_ = RS1(gaussian_operator, num_passes - 2, ulaw.orth, 1)
     rf_ = RF1(rso_)
-    qb_ = QB1(rf_)#We need QB1 not QB2, since B=Q^*A is necessary
+    qb_ = QB1(rf_)
+    #We need QB1 not QB2, since B=Q^*A is necessary
     Q, B = qb_(A, k+s, np.NaN, rng)
-    #C = B @ Q# is the expression in design document, but is this correct?
-    C = Q @ B
-    
+    C = B @ Q
+    # d = number of columns in Q, d ≤ k + s
     d = Q.shape[1]
     if d > k+s:
         msg = """
         This implementation the dimension of Q matrix <= k + s.
         """ 
         raise RuntimeError(msg)
-    U, lambda_matrix, Vh = la.svd(C)
 
+    U, lambda_matrix, Vh = la.svd(C)
+    # Full d × d Hermitian eigendecomposition for the smaller matrix C.
+    #Alternatively, U, lambda_matrix = la.eigh(C), but this returns a dense lambda_matrix matrix.
     r = min(k,d)
     I = np.argsort(-1*np.abs(lambda_matrix))[range(r)]
+    # indices of r largest components of |λ|
     U = U[:,I]
-    lambda_matrix = lambda_matrix[I]
-    # V = Q @ U# is the expression in design document, but is this correct?
-    V = Q.T @ U
+    lambda_matrix = lambda_matrix[I] 
+    V = Q @ U
+    lambda_matrix = np.diag(lambda_matrix)
     return V, lambda_matrix
 
 def evd2(num_passes, A, k, epsilon, s, rng):
@@ -110,9 +122,9 @@ def evd2(num_passes, A, k, epsilon, s, rng):
     ----------
     num_passes : int
         Total number of passes over A. We require num_passes >= 2.
-
-    np.nan : NaN
-        A space-holder for unified interface.
+        
+    A : Union[ndarray, spmatrix, LinearOperator]
+        Data matrix to approximate. A must be an n × n Hermitian PSD matrix. But we did not check PSD
 
     k : int
         Target rank for the approximation of A: 0 < k < min(A.shape).
@@ -120,8 +132,12 @@ def evd2(num_passes, A, k, epsilon, s, rng):
         want to be near the optimal (Eckhart-Young) error for a rank 20
         approximation of A, then you might want to set k=25.
         
-    epsilon : float
+    epsilon = np.nan : NaN by default
         Target accuracy for the oversampled approximation of A: 0 < epsilon < np.inf.
+        This parameter inherits from the QBDecomposer or RangeFinder class.
+        
+    s  : int
+        Auxiliary parameter for the QBDecomposer or RangeFinder.
 
     rng : Union[None, int, SeedSequence, BitGenerator, Generator]
         Determines the numpy Generator object that manages randomness
@@ -152,7 +168,12 @@ def evd2(num_passes, A, k, epsilon, s, rng):
         (available at `arXiv <https://arxiv.org/abs/1706.05736>`_).
     EVDecomposer: psd matrices only, [TYUC17a, Algorithm 3]
     """
-
+    if not (A == A.T).all():
+        #Needs to consider conjugate as well if A contains complex numbers.
+        msg = """
+        This rountine evd1 only works for Hermitian matrices.
+        """ 
+        raise RuntimeError(msg)
     rng = np.random.default_rng(rng)
     rso_ = RS1(gaussian_operator, num_passes - 2, ulaw.orth, 1)
     S = rso_(A, k + s,rng)
@@ -160,20 +181,25 @@ def evd2(num_passes, A, k, epsilon, s, rng):
     Y = A @ S
     epsilon_mach = epsilon # a temporary regularization parameter
     nu = np.sqrt(n)*epsilon_mach*la.norm(Y)
-    
+    # a temporary regularization parameter
     Y = Y + nu*S
     R = la.cholesky(S.T @ Y, lower=True)
     # R is upper-triangular and R^T @ R = S^T @ Y = S^T @ (A + nu*I)S
     B = Y @ la.inv(R.T)
+    # B has n rows and k + s columns
     V, Sigma_matrix, Wh = la.svd(B)
     W = Wh.T
+    
     comp_list = [k]
     for i in range(min(k,n)):
         if Sigma_matrix[(i+1)]**2<=nu:
             comp_list.append(i)
-    r = min(comp_list) # drop components that relied on regularization
+    #comp_list constracuts the union from which we drop components next.        
+    r = min(comp_list) 
+    # drop components that relied on regularization
     lambda_matrix = (Sigma_matrix**2)[range(r)]-nu
     V = V[:,range(r)]
+    lambda_matrix = np.diag(lambda_matrix)
     return V, lambda_matrix
 
 ###############################################################################
@@ -192,7 +218,7 @@ class EVDecomposer:
         Parameters
         ----------
         A : Union[ndarray, spmatrix, LinearOperator]
-            Data matrix to be approximated.
+            Data matrix to approximate. A must be an n × n Hermitian matrix. 
 
         k : int
             Target for the number of columns in Q: 0 < k <= min(A.shape).
@@ -204,6 +230,7 @@ class EVDecomposer:
 
         epsilon : float
             Target accuracy for the oversampled approximation of A: 0 < epsilon < np.inf.
+            This parameter inherits from the QBDecomposer or RangeFinder class.
             
         s  : int
             Auxiliary parameter for the QBDecomposer or RangeFinder.
@@ -236,7 +263,7 @@ class EVD1(EVDecomposer):
         """
         self.rangefinder = rf
 
-    def __call__(self, A, k, tol, rng):
+    def __call__(self, A, k, epsilon, s, rng):
         """
         Rely on a rangefinder to obtain the matrix Q for the decomposition
         A \approx Q B. Once we have Q, we construct B = Q.T @ A and return
@@ -248,30 +275,38 @@ class EVD1(EVDecomposer):
 
         Parameters
         ----------
+        num_passes : int
+            Total number of passes over A. We require num_passes >= 2.
+
         A : Union[ndarray, spmatrix, LinearOperator]
-            Data matrix to approximate.
+            Data matrix to approximate. A must be an n × n Hermitian matrix.
 
         k : int
-            Target for the number of columns in Q: 0 < k <= min(A.shape).
-            This parameter is passed directly to the rangefinder.
-
-        tol : float
-            Target for the error ||A - Q B||: 0 <= tol < np.inf.
-            This parameter is passed directly to the rangefinder.
-            Note that since we construct B := Q.T @ A, we have
-            ||A - Q B|| = ||A  - Q Q' A||.
+            Target rank for the approximation of A: 0 < k < min(A.shape).
+            This parameter includes any oversampling. For example, if you
+            want to be near the optimal (Eckhart-Young) error for a rank 20
+            approximation of A, then you might want to set k=25.
+            
+        epsilon : float
+            Target accuracy for the oversampled approximation of A: 0 < epsilon < np.inf.
+            This parameter inherits from the QBDecomposer or RangeFinder class.
+            
+        s  : int
+            Auxiliary parameter for the QBDecomposer or RangeFinder.
 
         rng : Union[None, int, SeedSequence, BitGenerator, Generator]
-            Determines the numpy Generator object that manages any and all
-            randomness in this function call.
+            Determines the numpy Generator object that manages randomness
+            in this function call.
 
         Returns
         -------
-        Q : ndarray
-            Output of the underlying rangefinder.
+        V : ndarray
+            Has shape (A.shape[0], k). Columns are orthonormal.
 
-        B : ndarray
-            Equal to Q.T @ A.
+        lambda_matrix : ndarray
+            Has shape (k,k). lambda_matrix is a diagonal matrix storing the eigenvalues of 
+            the matrix A
+
         """
         assert k > 0
         assert k <= min(A.shape)
@@ -280,24 +315,25 @@ class EVD1(EVDecomposer):
             assert tol < np.inf
         rng = np.random.default_rng(rng)
         Q = self.rangefinder(A, k, tol, rng)
-        B = Q.T @ A
-        #C = B @ Q# is the expression in design document, but is this correct?
-        C = Q @ B
-        
+        C = B @ Q
+        # d = number of columns in Q, d ≤ k + s
         d = Q.shape[1]
         if d > k+s:
             msg = """
             This implementation the dimension of Q matrix <= k + s.
             """ 
             raise RuntimeError(msg)
-        U, lambda_matrix, Vh = la.svd(C)
 
+        U, lambda_matrix, Vh = la.svd(C)
+        # Full d × d Hermitian eigendecomposition for the smaller matrix C.
+        #Alternatively, U, lambda_matrix = la.eigh(C), but this returns a dense lambda_matrix matrix.
         r = min(k,d)
         I = np.argsort(-1*np.abs(lambda_matrix))[range(r)]
+        # indices of r largest components of |λ|
         U = U[:,I]
-        lambda_matrix = lambda_matrix[I]
-        # V = Q @ U# is the expression in design document, but is this correct?
-        V = Q.T @ U
+        lambda_matrix = lambda_matrix[I] 
+        V = Q @ U
+        lambda_matrix = np.diag(lambda_matrix)
         return V, lambda_matrix
 
 class EVD2(EVDecomposer):
@@ -312,42 +348,54 @@ class EVD2(EVDecomposer):
         """
         self.rowsketcher
 
-    def __call__(self, A, k, tol, rng):
+    def __call__(self, A, k, epsilon, s, rng):
         """
-        Rely on a rangefinder to obtain the matrix Q for the decomposition
-        A \approx Q B. Once we have Q, we construct B = Q.T @ A and return
-        (Q, B). This function is agnostic to the implementation of the
-        rangefinder: it might build a rank-k matrix Q all at once or construct
-        successively larger matrices Q by an iterative process. We make no
-        assumptions on the rangefinder's termination criteria beyond those
+        Rely on a RowSketcher to obtain the matrix S for the sketching matrix
+        S. Once we have S, we construct Y = A @ S and return Cholesky decomposition of 
+        S^T @ Y. This function is agnostic to the implementation of the
+        RowSketcher: it might has different ways of row sketching. We make no
+        assumptions on the RowSketcher's termination criteria beyond those
         listed below.
+
+        Return the eigen decomposition matrices (V, lambda_matrix),
+        based on a row sketched version of A.
+        Use a Gaussian sketching matrix and pass over A a total of
+        num_passes times.
 
         Parameters
         ----------
+        num_passes : int
+            Total number of passes over A. We require num_passes >= 2.
+            
         A : Union[ndarray, spmatrix, LinearOperator]
-            Data matrix to approximate.
+            Data matrix to approximate. A must be an n × n Hermitian PSD matrix. But we did not check PSD
 
         k : int
-            Target for the number of columns in Q: 0 < k <= min(A.shape).
-            This parameter is passed directly to the rangefinder.
-
-        tol : float
-            Target for the error ||A - Q B||: 0 <= tol < np.inf.
-            This parameter is passed directly to the rangefinder.
-            Note that since we construct B := Q.T @ A, we have
-            ||A - Q B|| = ||A  - Q Q' A||.
+            Target rank for the approximation of A: 0 < k < min(A.shape).
+            This parameter includes any oversampling. For example, if you
+            want to be near the optimal (Eckhart-Young) error for a rank 20
+            approximation of A, then you might want to set k=25.
+            
+        epsilon = np.nan : NaN by default
+            Target accuracy for the oversampled approximation of A: 0 < epsilon < np.inf.
+            This parameter inherits from the QBDecomposer or RangeFinder class.
+            
+        s  : int
+            Auxiliary parameter for the QBDecomposer or RangeFinder.
 
         rng : Union[None, int, SeedSequence, BitGenerator, Generator]
-            Determines the numpy Generator object that manages any and all
-            randomness in this function call.
+            Determines the numpy Generator object that manages randomness
+            in this function call.
 
         Returns
         -------
-        Q : ndarray
-            Output of the underlying rangefinder.
+        V : ndarray
+            Has shape (A.shape[0], k). Columns are orthonormal.
 
-        B : ndarray
-            Equal to Q.T @ A.
+        lambda_matrix : ndarray
+            Has shape (k,k). lambda_matrix is a diagonal matrix storing the eigenvalues of 
+            the matrix A
+
         """
         assert k > 0
         assert k <= min(A.shape)
@@ -360,20 +408,25 @@ class EVD2(EVDecomposer):
         Y = A @ S
         epsilon_mach = epsilon # a temporary regularization parameter
         nu = np.sqrt(n)*epsilon_mach*la.norm(Y)
-        
+        # a temporary regularization parameter
         Y = Y + nu*S
         R = la.cholesky(S.T @ Y, lower=True)
         # R is upper-triangular and R^T @ R = S^T @ Y = S^T @ (A + nu*I)S
         B = Y @ la.inv(R.T)
+        # B has n rows and k + s columns
         V, Sigma_matrix, Wh = la.svd(B)
         W = Wh.T
+        
         comp_list = [k]
         for i in range(min(k,n)):
             if Sigma_matrix[(i+1)]**2<=nu:
                 comp_list.append(i)
-        r = min(comp_list) # drop components that relied on regularization
+        #comp_list constracuts the union from which we drop components next.        
+        r = min(comp_list) 
+        # drop components that relied on regularization
         lambda_matrix = (Sigma_matrix**2)[range(r)]-nu
         V = V[:,range(r)]
+        lambda_matrix = np.diag(lambda_matrix)
         return V, lambda_matrix
 
 
