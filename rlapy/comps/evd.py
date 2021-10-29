@@ -20,7 +20,7 @@ import rlapy.utils.linalg_wrappers as ulaw
 ###############################################################################
 
 
-def evd1(num_passes, A, k, epsilon, s, rng):
+def evd1(num_passes, A, k, tol, s, rng):
     """
     Return the eigen decomposition matrices (V, lambda_matrix),
     based on a rank-k QB factorization of A.
@@ -41,8 +41,8 @@ def evd1(num_passes, A, k, epsilon, s, rng):
         want to be near the optimal (Eckhart-Young) error for a rank 20
         approximation of A, then you might want to set k=25.
         
-    epsilon : float
-        Target accuracy for the oversampled approximation of A: 0 < epsilon < np.inf.
+    tol : float
+        Target accuracy for the oversampled approximation of A: 0 < tol < np.inf.
         This parameter inherits from the QBDecomposer or RangeFinder class.
         
     s  : int
@@ -83,10 +83,10 @@ def evd1(num_passes, A, k, epsilon, s, rng):
     rf_ = RF1(rso_)
     qb_ = QB1(rf_)
     evd_ = EVD1(qb_)
-    V, lambda_matrix = evd_(A, k, epsilon, s, rng)
+    V, lambda_matrix = evd_(A, k, tol, s, rng)
     return V, lambda_matrix
 
-def evd2(num_passes, A, k, epsilon, s, rng):
+def evd2(num_passes, A, k, tol, s, rng):
     """
     Return the eigen decomposition matrices (V, lambda_matrix),
     based on a rank-k QB factorization of A.
@@ -107,8 +107,8 @@ def evd2(num_passes, A, k, epsilon, s, rng):
         want to be near the optimal (Eckhart-Young) error for a rank 20
         approximation of A, then you might want to set k=25.
         
-    epsilon = np.nan : NaN by default
-        Target accuracy for the oversampled approximation of A: 0 < epsilon < np.inf.
+    tol = np.nan : NaN by default
+        Target accuracy for the oversampled approximation of A: 0 < tol < np.inf.
         This parameter inherits from the QBDecomposer or RangeFinder class.
         
     s  : int
@@ -146,7 +146,7 @@ def evd2(num_passes, A, k, epsilon, s, rng):
     rng = np.random.default_rng(rng)
     rso_ = RS1(gaussian_operator, num_passes - 2, ulaw.orth, 1)
     evd_ = EVD2(rso_)
-    V, lambda_matrix = evd_(A, k, epsilon, s, rng)
+    V, lambda_matrix = evd_(A, k, tol, s, rng)
     return V, lambda_matrix
 
 ###############################################################################
@@ -157,7 +157,7 @@ class EVDecomposer:
 
     TOL_CONTROL = 'none'
 
-    def __call__(self, A, k, epsilon, s, rng):
+    def __call__(self, A, k, tol, s, rng):
         """
         Return a matrix V with orthonormal columns and a lambda matrix (in vector form) lambda_matrix where
         the diagonal are the eigen values of 
@@ -175,8 +175,8 @@ class EVDecomposer:
             case the implementation returns only once a specified error
             tolerance has been met.
 
-        epsilon : float
-            Target accuracy for the oversampled approximation of A: 0 < epsilon < np.inf.
+        tol : float
+            Target accuracy for the oversampled approximation of A: 0 < tol < np.inf.
             This parameter inherits from the QBDecomposer or RangeFinder class.
             
         s  : int
@@ -210,7 +210,7 @@ class EVD1(EVDecomposer):
         """
         self.QBDecomposer = qb
 
-    def __call__(self, A, k, epsilon, s, rng):
+    def __call__(self, A, k, tol, s, rng):
         """
         Rely on a rangefinder to obtain the matrix Q for the decomposition
         A \approx Q B. Once we have Q, we construct B = Q.T @ A and return
@@ -234,8 +234,8 @@ class EVD1(EVDecomposer):
             want to be near the optimal (Eckhart-Young) error for a rank 20
             approximation of A, then you might want to set k=25.
             
-        epsilon : float
-            Target accuracy for the oversampled approximation of A: 0 < epsilon < np.inf.
+        tol : float
+            Target accuracy for the oversampled approximation of A: 0 < tol < np.inf.
             This parameter inherits from the QBDecomposer or RangeFinder class.
             
         s  : int
@@ -257,9 +257,9 @@ class EVD1(EVDecomposer):
         """
         assert k > 0
         assert k <= min(A.shape)
-        if not np.isnan(epsilon):
-            assert epsilon >= 0
-            assert epsilon < np.inf
+        if not np.isnan(tol):
+            assert tol >= 0
+            assert tol < np.inf
         rng = np.random.default_rng(rng)
         Q, B = self.QBDecomposer(A, k+s, np.NaN, rng)
         #We need QB1 not QB2, since B=Q^*A is necessary
@@ -297,7 +297,7 @@ class EVD2(EVDecomposer):
         """
         self.rowsketcher = rs
 
-    def __call__(self, A, k, epsilon, s, rng):
+    def __call__(self, A, k, tol, s, rng):
         """
         Rely on a RowSketcher to obtain the matrix S for the sketching matrix
         S. Once we have S, we construct Y = A @ S and return Cholesky decomposition of 
@@ -325,8 +325,8 @@ class EVD2(EVDecomposer):
             want to be near the optimal (Eckhart-Young) error for a rank 20
             approximation of A, then you might want to set k=25.
             
-        epsilon = np.nan : NaN by default
-            Target accuracy for the oversampled approximation of A: 0 < epsilon < np.inf.
+        tol = np.nan : NaN by default
+            Target accuracy for the oversampled approximation of A: 0 < tol < np.inf.
             This parameter inherits from the QBDecomposer or RangeFinder class.
             
         s  : int
@@ -348,23 +348,24 @@ class EVD2(EVDecomposer):
         """
         assert k > 0
         assert k <= min(A.shape)
-        if not np.isnan(epsilon):
-            assert epsilon >= 0
-            assert epsilon < np.inf
+        if not np.isnan(tol):
+            assert tol >= 0
+            assert tol < np.inf
         rng = np.random.default_rng(rng)
         S = self.rowsketcher(A, k + s,rng)
         n = A.shape[0]
         Y = A @ S
-        epsilon_mach = epsilon # a temporary regularization parameter
+        epsilon_mach = np.finfo(float).eps # a temporary regularization parameter
         nu = np.sqrt(n)*epsilon_mach*la.norm(Y)
         # a temporary regularization parameter
         Y = Y + nu*S
         R = la.cholesky(S.T @ Y, lower=True)
         # R is upper-triangular and R^T @ R = S^T @ Y = S^T @ (A + nu*I)S
-        B = Y @ la.inv(R.T)
+        # B = Y @ la.inv(R.T)
+        B = (la.solve_triangular(R, Y.T, lower=True))
         # B has n rows and k + s columns
         V, Sigma_matrix, Wh = la.svd(B)
-        W = Wh.T
+        # W = Wh.T
         
         comp_list = [k]
         for i in range(min(k,n)):
@@ -373,8 +374,8 @@ class EVD2(EVDecomposer):
         #comp_list constracuts the union from which we drop components next.        
         r = min(comp_list) 
         # drop components that relied on regularization
-        lambda_matrix = (Sigma_matrix**2)[range(r)]-nu
-        V = V[:,range(r)]
+        lambda_matrix = (Sigma_matrix**2)[:r]-nu
+        V = V[:,:r]
         lambda_matrix = np.diag(lambda_matrix)
         return V, lambda_matrix
 

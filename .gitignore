@@ -131,3 +131,4 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+notebooks/eigen_decomposition/eigen_decomposition_of_Hermitian_matrix.ipynb
