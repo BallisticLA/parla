@@ -78,37 +78,12 @@ def evd1(num_passes, A, k, epsilon, s, rng):
         (available at `arXiv <http://arxiv.org/abs/0909.4061>`_).
     EVDecomposer: adapted from the QB-based [HMT11, Algorithm 5.3]
     """
-    if not (A == A.T).all():
-        #Needs to consider conjugate as well if A contains complex numbers.
-        msg = """
-        This rountine evd1 only works for Hermitian matrices.
-        """ 
-        raise RuntimeError(msg)
     rng = np.random.default_rng(rng)
     rso_ = RS1(gaussian_operator, num_passes - 2, ulaw.orth, 1)
     rf_ = RF1(rso_)
     qb_ = QB1(rf_)
-    #We need QB1 not QB2, since B=Q^*A is necessary
-    Q, B = qb_(A, k+s, np.NaN, rng)
-    C = B @ Q
-    # d = number of columns in Q, d ≤ k + s
-    d = Q.shape[1]
-    if d > k+s:
-        msg = """
-        This implementation the dimension of Q matrix <= k + s.
-        """ 
-        raise RuntimeError(msg)
-
-    U, lambda_matrix, Vh = la.svd(C)
-    # Full d × d Hermitian eigendecomposition for the smaller matrix C.
-    #Alternatively, U, lambda_matrix = la.eigh(C), but this returns a dense lambda_matrix matrix.
-    r = min(k,d)
-    I = np.argsort(-1*np.abs(lambda_matrix))[range(r)]
-    # indices of r largest components of |λ|
-    U = U[:,I]
-    lambda_matrix = lambda_matrix[I] 
-    V = Q @ U
-    lambda_matrix = np.diag(lambda_matrix)
+    evd_ = EVD1(qb_)
+    V, lambda_matrix = evd_(A, k, epsilon, s, rng)
     return V, lambda_matrix
 
 def evd2(num_passes, A, k, epsilon, s, rng):
@@ -168,38 +143,10 @@ def evd2(num_passes, A, k, epsilon, s, rng):
         (available at `arXiv <https://arxiv.org/abs/1706.05736>`_).
     EVDecomposer: psd matrices only, [TYUC17a, Algorithm 3]
     """
-    if not (A == A.T).all():
-        #Needs to consider conjugate as well if A contains complex numbers.
-        msg = """
-        This rountine evd1 only works for Hermitian matrices.
-        """ 
-        raise RuntimeError(msg)
     rng = np.random.default_rng(rng)
     rso_ = RS1(gaussian_operator, num_passes - 2, ulaw.orth, 1)
-    S = rso_(A, k + s,rng)
-    n = A.shape[0]
-    Y = A @ S
-    epsilon_mach = epsilon # a temporary regularization parameter
-    nu = np.sqrt(n)*epsilon_mach*la.norm(Y)
-    # a temporary regularization parameter
-    Y = Y + nu*S
-    R = la.cholesky(S.T @ Y, lower=True)
-    # R is upper-triangular and R^T @ R = S^T @ Y = S^T @ (A + nu*I)S
-    B = Y @ la.inv(R.T)
-    # B has n rows and k + s columns
-    V, Sigma_matrix, Wh = la.svd(B)
-    W = Wh.T
-    
-    comp_list = [k]
-    for i in range(min(k,n)):
-        if Sigma_matrix[(i+1)]**2<=nu:
-            comp_list.append(i)
-    #comp_list constracuts the union from which we drop components next.        
-    r = min(comp_list) 
-    # drop components that relied on regularization
-    lambda_matrix = (Sigma_matrix**2)[range(r)]-nu
-    V = V[:,range(r)]
-    lambda_matrix = np.diag(lambda_matrix)
+    evd_ = EVD2(rso_)
+    V, lambda_matrix = evd_(A, k, epsilon, s, rng)
     return V, lambda_matrix
 
 ###############################################################################
@@ -255,13 +202,13 @@ class EVD1(EVDecomposer):
 
     TOL_CONTROL = 'unknown'  # depends on implementation of rangefinder
 
-    def __init__(self, rf: RangeFinder):
+    def __init__(self, qb: QBDecomposer):
         """
         Parameters
         ----------
         rf : RangeFinder
         """
-        self.rangefinder = rf
+        self.QBDecomposer = qb
 
     def __call__(self, A, k, epsilon, s, rng):
         """
@@ -311,10 +258,11 @@ class EVD1(EVDecomposer):
         assert k > 0
         assert k <= min(A.shape)
         if not np.isnan(epsilon):
-            assert tol >= 0
-            assert tol < np.inf
+            assert epsilon >= 0
+            assert epsilon < np.inf
         rng = np.random.default_rng(rng)
-        Q = self.rangefinder(A, k, tol, rng)
+        Q, B = self.QBDecomposer(A, k+s, np.NaN, rng)
+        #We need QB1 not QB2, since B=Q^*A is necessary
         C = B @ Q
         # d = number of columns in Q, d ≤ k + s
         d = Q.shape[1]
@@ -324,9 +272,10 @@ class EVD1(EVDecomposer):
             """ 
             raise RuntimeError(msg)
 
-        U, lambda_matrix, Vh = la.svd(C)
+        #U, lambda_matrix, Vh = la.svd(C)
         # Full d × d Hermitian eigendecomposition for the smaller matrix C.
-        #Alternatively, U, lambda_matrix = la.eigh(C), but this returns a dense lambda_matrix matrix.
+        #Alternatively, but this returns a dense lambda_matrix matrix. 
+        lambda_matrix, U = la.eigh(C)
         r = min(k,d)
         I = np.argsort(-1*np.abs(lambda_matrix))[range(r)]
         # indices of r largest components of |λ|
@@ -346,7 +295,7 @@ class EVD2(EVDecomposer):
         ----------
         rs : RowSketcher
         """
-        self.rowsketcher
+        self.rowsketcher = rs
 
     def __call__(self, A, k, epsilon, s, rng):
         """
@@ -400,8 +349,8 @@ class EVD2(EVDecomposer):
         assert k > 0
         assert k <= min(A.shape)
         if not np.isnan(epsilon):
-            assert tol >= 0
-            assert tol < np.inf
+            assert epsilon >= 0
+            assert epsilon < np.inf
         rng = np.random.default_rng(rng)
         S = self.rowsketcher(A, k + s,rng)
         n = A.shape[0]
