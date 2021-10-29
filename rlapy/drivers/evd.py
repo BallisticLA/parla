@@ -1,19 +1,11 @@
-#####To-be removed
-rlapy_path='/media/hrluo/ALL/rlapy'
-# insert at 1, 0 is the script path (or '' in REPL)
-import sys
-sys.path.insert(0, rlapy_path)
-
-import warnings
-
 import numpy as np
 import scipy.linalg as la
 from rlapy.utils.sketching import gaussian_operator
 from rlapy.comps.rangefinders import RangeFinder, RF1
 from rlapy.comps.sketchers import RowSketcher, RS1
 from rlapy.comps.qb import QBDecomposer, QB1
-#from rlapy.comps.svd import SVDecomposer, SVD1
 import rlapy.utils.linalg_wrappers as ulaw
+
 
 ###############################################################################
 #       Classic implementations, exposing fewest possible parameters.
@@ -86,6 +78,7 @@ def evd1(num_passes, A, k, tol, s, rng):
     V, lambda_matrix = evd_(A, k, tol, s, rng)
     return V, lambda_matrix
 
+
 def evd2(num_passes, A, k, tol, s, rng):
     """
     Return the eigen decomposition matrices (V, lambda_matrix),
@@ -152,6 +145,7 @@ def evd2(num_passes, A, k, tol, s, rng):
 ###############################################################################
 #       Object-oriented interfaces
 ###############################################################################
+
 
 class EVDecomposer:
 
@@ -262,7 +256,7 @@ class EVD1(EVDecomposer):
             assert tol < np.inf
         rng = np.random.default_rng(rng)
         Q, B = self.QBDecomposer(A, k+s, np.NaN, rng)
-        #We need QB1 not QB2, since B=Q^*A is necessary
+        # B=Q^*A is necessary
         C = B @ Q
         # d = number of columns in Q, d ≤ k + s
         d = Q.shape[1]
@@ -272,18 +266,16 @@ class EVD1(EVDecomposer):
             """ 
             raise RuntimeError(msg)
 
-        #U, lambda_matrix, Vh = la.svd(C)
-        # Full d × d Hermitian eigendecomposition for the smaller matrix C.
-        #Alternatively, but this returns a dense lambda_matrix matrix. 
         lambda_matrix, U = la.eigh(C)
         r = min(k,d)
         I = np.argsort(-1*np.abs(lambda_matrix))[range(r)]
         # indices of r largest components of |λ|
-        U = U[:,I]
+        U = U[:, I]
         lambda_matrix = lambda_matrix[I] 
         V = Q @ U
         lambda_matrix = np.diag(lambda_matrix)
         return V, lambda_matrix
+
 
 class EVD2(EVDecomposer):
 
@@ -362,20 +354,19 @@ class EVD2(EVDecomposer):
         R = la.cholesky(S.T @ Y, lower=True)
         # R is upper-triangular and R^T @ R = S^T @ Y = S^T @ (A + nu*I)S
         # B = Y @ la.inv(R.T)
-        B = (la.solve_triangular(R, Y.T, lower=True))
+        B = (la.solve_triangular(R, Y.T, lower=True)).T
         # B has n rows and k + s columns
         V, Sigma_matrix, Wh = la.svd(B)
-        # W = Wh.T
         
         comp_list = [k]
-        for i in range(min(k,n)):
-            if Sigma_matrix[(i+1)]**2<=nu:
+        for i in range(min(k, n)):
+            if Sigma_matrix[(i+1)]**2 <= nu:
                 comp_list.append(i)
         #comp_list constracuts the union from which we drop components next.        
         r = min(comp_list) 
         # drop components that relied on regularization
         lambda_matrix = (Sigma_matrix**2)[:r]-nu
-        V = V[:,:r]
+        V = V[:, :r]
         lambda_matrix = np.diag(lambda_matrix)
         return V, lambda_matrix
 
