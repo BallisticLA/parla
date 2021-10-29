@@ -22,3 +22,8 @@ def lup(M):
     """Factor M = L @ U @ P"""
     P, L, U = la.lu(M.T)
     return U.T, L.T, P.T
+
+def svd(M):
+    """Generic svd procedure M = U @ np.diag(s) @ Vh"""
+    U, s, Vh = linalg.svd(M)
+    return U, s, Vh
