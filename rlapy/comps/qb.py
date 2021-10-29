@@ -82,7 +82,7 @@ def qb(num_passes, A, k, rng):
     return Q, B
 
 
-def qb_b_fet(inner_num_pass, blk, overwrite_A, A, k, tol, rng):
+def qb_b(inner_num_pass, blk, overwrite_A, A, k, tol, rng):
     """
     Iteratively build an approximate QB factorization of A,
     which terminates once either of the following conditions
