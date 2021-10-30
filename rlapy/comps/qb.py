@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import scipy.linalg as la
 from rlapy.utils.sketching import gaussian_operator
@@ -80,7 +82,7 @@ def qb(num_passes, A, k, rng):
     return Q, B
 
 
-def qb_b_fet(inner_num_pass, blk, overwrite_A, A, k, tol, rng):
+def qb_b(inner_num_pass, blk, overwrite_A, A, k, tol, rng):
     """
     Iteratively build an approximate QB factorization of A,
     which terminates once either of the following conditions
@@ -140,7 +142,7 @@ def qb_b_fet(inner_num_pass, blk, overwrite_A, A, k, tol, rng):
     QR factorization at each step.
 
     The implementation is built up as
-        RS1(RowSketcher) --> RF1(RangeFinder) --> QB2(QBFactorizer)
+        RS1(RowSketcher) --> RF1(RangeFinder) --> QB2(QBDecomposer)
 
     References
     ----------
@@ -236,7 +238,7 @@ def qb_b_pe(num_passes, blk, A, k, tol, rng):
 #       Object-oriented interfaces
 ###############################################################################
 
-class QBFactorizer:
+class QBDecomposer:
 
     TOL_CONTROL = 'none'
 
@@ -281,7 +283,7 @@ class QBFactorizer:
         raise NotImplementedError()
 
 
-class QB1(QBFactorizer):
+class QB1(QBDecomposer):
     """
     Direct reduction to the rangefinder problem. Given a rangefinder's output
     Q, we set B = Q.T @ A and return (Q, B).
@@ -349,7 +351,7 @@ class QB1(QBFactorizer):
         return Q, B
 
 
-class QB2(QBFactorizer):
+class QB2(QBDecomposer):
     """
     Common uses of a QB2 object "qb_alg"
 
@@ -438,6 +440,14 @@ class QB2(QBFactorizer):
         if not self.overwrite_a:
             A = np.copy(A)
         assert k > 0
+        small_dim = min(A.shape)
+        if not k <= small_dim:
+            msg = f"""
+            The target rank k = {k} is larger than min({A.shape}).
+            We will proceed with target rank k = {small_dim}.
+            """
+            k = small_dim
+            warnings.warn(msg)
         assert k <= min(A.shape)
         use_tol = not np.isnan(tol)
         if use_tol:
@@ -473,7 +483,7 @@ class QB2(QBFactorizer):
         return Q, B
 
 
-class QB3(QBFactorizer):
+class QB3(QBDecomposer):
 
     TOL_CONTROL = 'early stopping'
 

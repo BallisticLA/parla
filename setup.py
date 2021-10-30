@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name='rlapy',
-    version='0.1',
+    version='0.1.1',
     author='',
     url='https://github.com/rileyjmurray/rlapy',
     author_email='',

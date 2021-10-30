@@ -1,6 +1,6 @@
 import numpy as np
 import scipy.linalg as la
-from rlapy.comps.qb import QBFactorizer
+from rlapy.comps.qb import QBDecomposer
 
 
 class SVDecomposer:
@@ -57,12 +57,12 @@ class SVD1(SVDecomposer):
     implemented by an arbitrary QB factorization method.
     """
 
-    def __init__(self, qb: QBFactorizer):
+    def __init__(self, qb: QBDecomposer):
         """
 
         Parameters
         ----------
-        qb : QBFactorizer
+        qb : QBDecomposer
             qb(A, ell, tol, rng) returns a QB factorization of A with
             target rank "ell", target tolerance "tol", using the numpy
             Generator object np.random.default_rng(rng).
@@ -95,5 +95,10 @@ class SVD1(SVDecomposer):
             U = U[:, :cutoff]
             s = s[:cutoff]
             Vh = Vh[:cutoff, :]
+        drop = s < np.finfo(float).eps
+        if np.any(drop):
+            U = U[:, ~drop]
+            s = s[~drop]
+            Vh = Vh[~drop, :]
         U = Q @ U
         return U, s, Vh
