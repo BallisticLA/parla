@@ -12,9 +12,9 @@ import rlapy.utils.linalg_wrappers as ulaw
 ###############################################################################
 
 
-def evd1(num_passes, A, k, tol, s, rng):
+def evd1(num_passes, A, k, tol, over, rng):
     """
-    Return the eigen decomposition matrices (V, lambda_matrix),
+    Return the eigen decomposition matrices (V, lamb),
     based on a rank-k QB factorization of A.
     Use a Gaussian sketching matrix and pass over A a total of
     num_passes times.
@@ -37,7 +37,7 @@ def evd1(num_passes, A, k, tol, s, rng):
         Target accuracy for the oversampled approximation of A: 0 < tol < np.inf.
         This parameter inherits from the QBDecomposer or RangeFinder class.
         
-    s  : int
+    over : int
         Auxiliary parameter for the QBDecomposer or RangeFinder.
 
     rng : Union[None, int, SeedSequence, BitGenerator, Generator]
@@ -49,9 +49,8 @@ def evd1(num_passes, A, k, tol, s, rng):
     V : ndarray
         Has shape (A.shape[0], k). Columns are orthonormal.
 
-    lambda_matrix : ndarray
-        Has shape (k,k). lambda_matrix is a diagonal matrix storing the eigenvalues of 
-        the matrix A
+    lamb : ndarray
+        Has shape (k,), the vector of estimated eigenvalues of A
 
     Notes
     -----
@@ -75,13 +74,13 @@ def evd1(num_passes, A, k, tol, s, rng):
     rf_ = RF1(rso_)
     qb_ = QB1(rf_)
     evd_ = EVD1(qb_)
-    V, lambda_matrix = evd_(A, k, tol, s, rng)
-    return V, lambda_matrix
+    V, lamb = evd_(A, k, tol, over, rng)
+    return V, lamb
 
 
-def evd2(num_passes, A, k, tol, s, rng):
+def evd2(num_passes, A, k, tol, over, rng):
     """
-    Return the eigen decomposition matrices (V, lambda_matrix),
+    Return the eigen decomposition matrices (V, lamb),
     based on a rank-k QB factorization of A.
     Use a Gaussian sketching matrix and pass over A a total of
     num_passes times.
@@ -92,7 +91,8 @@ def evd2(num_passes, A, k, tol, s, rng):
         Total number of passes over A. We require num_passes >= 2.
         
     A : Union[ndarray, spmatrix, LinearOperator]
-        Data matrix to approximate. A must be an n × n Hermitian PSD matrix. But we did not check PSD
+        Data matrix to approximate. A must be an n × n Hermitian PSD matrix.
+        But we did not check PSD
 
     k : int
         Target rank for the approximation of A: 0 < k < min(A.shape).
@@ -104,7 +104,7 @@ def evd2(num_passes, A, k, tol, s, rng):
         Target accuracy for the oversampled approximation of A: 0 < tol < np.inf.
         This parameter inherits from the QBDecomposer or RangeFinder class.
         
-    s  : int
+    over : int
         Auxiliary parameter for the QBDecomposer or RangeFinder.
 
     rng : Union[None, int, SeedSequence, BitGenerator, Generator]
@@ -116,9 +116,8 @@ def evd2(num_passes, A, k, tol, s, rng):
     V : ndarray
         Has shape (A.shape[0], k). Columns are orthonormal.
 
-    lambda_matrix : ndarray
-        Has shape (k,k). lambda_matrix is a diagonal matrix storing the eigenvalues of 
-        the matrix A
+    lamb : ndarray
+        Has shape (k,). lamb contains the estimated eigenvalues of A.
 
     Notes
     -----
@@ -139,8 +138,8 @@ def evd2(num_passes, A, k, tol, s, rng):
     rng = np.random.default_rng(rng)
     rso_ = RS1(oblivious.SkOpGA(), num_passes - 2, ulaw.orth, 1)
     evd_ = EVD2(rso_)
-    V, lambda_matrix = evd_(A, k, tol, s, rng)
-    return V, lambda_matrix
+    V, lamb = evd_(A, k, tol, over, rng)
+    return V, lamb
 
 ###############################################################################
 #       Object-oriented interfaces
@@ -151,10 +150,10 @@ class EVDecomposer:
 
     TOL_CONTROL = 'none'
 
-    def __call__(self, A, k, tol, s, rng):
+    def __call__(self, A, k, tol, over, rng):
         """
-        Return a matrix V with orthonormal columns and a lambda matrix (in vector form) lambda_matrix where
-        the diagonal are the eigen values of 
+        Return a matrix V with orthonormal columns and a real vector lamb
+        where A is approximated by A_hat = V @ diag(lamb) @ V.T.
 
         Parameters
         ----------
@@ -173,7 +172,7 @@ class EVDecomposer:
             Target accuracy for the oversampled approximation of A: 0 < tol < np.inf.
             This parameter inherits from the QBDecomposer or RangeFinder class.
             
-        s  : int
+        over : int
             Auxiliary parameter for the QBDecomposer or RangeFinder.
 
         rng : Union[None, int, SeedSequence, BitGenerator, Generator]
@@ -185,26 +184,20 @@ class EVDecomposer:
         V : ndarray
             Has shape (A.shape[0], k). Columns are orthonormal.
 
-        lambda_matrix : ndarray
-            Has shape (k,k). lambda_matrix is a diagonal matrix storing the eigenvalues of 
-            the matrix A
+        lamb : ndarray
+            Has shape (k,). lamb contains the estimated eigenvalues of A.
         """
         raise NotImplementedError()
 
 
 class EVD1(EVDecomposer):
 
-    TOL_CONTROL = 'unknown'  # depends on implementation of rangefinder
+    TOL_CONTROL = 'unknown'  # depends on implementation of QB
 
     def __init__(self, qb: QBDecomposer):
-        """
-        Parameters
-        ----------
-        rf : RangeFinder
-        """
-        self.QBDecomposer = qb
+        self.qb = qb
 
-    def __call__(self, A, k, tol, s, rng):
+    def __call__(self, A, k, tol, over, rng):
         """
         Rely on a rangefinder to obtain the matrix Q for the decomposition
         A \approx Q B. Once we have Q, we construct B = Q.T @ A and return
@@ -232,7 +225,7 @@ class EVD1(EVDecomposer):
             Target accuracy for the oversampled approximation of A: 0 < tol < np.inf.
             This parameter inherits from the QBDecomposer or RangeFinder class.
             
-        s  : int
+        over : int
             Auxiliary parameter for the QBDecomposer or RangeFinder.
 
         rng : Union[None, int, SeedSequence, BitGenerator, Generator]
@@ -244,9 +237,8 @@ class EVD1(EVDecomposer):
         V : ndarray
             Has shape (A.shape[0], k). Columns are orthonormal.
 
-        lambda_matrix : ndarray
-            Has shape (k,k). lambda_matrix is a diagonal matrix storing the eigenvalues of 
-            the matrix A
+        lamb : ndarray
+            Has shape (k,). lamb contains the estimated eigenvalues of A.
 
         """
         assert k > 0
@@ -255,26 +247,26 @@ class EVD1(EVDecomposer):
             assert tol >= 0
             assert tol < np.inf
         rng = np.random.default_rng(rng)
-        Q, B = self.QBDecomposer(A, k+s, np.NaN, rng)
+        Q, B = self.qb(A, k + over, tol, rng)
         # B=Q^*A is necessary
         C = B @ Q
         # d = number of columns in Q, d ≤ k + s
         d = Q.shape[1]
-        if d > k+s:
+        if d > k + over:
             msg = """
             This implementation the dimension of Q matrix <= k + s.
             """ 
             raise RuntimeError(msg)
 
-        lambda_matrix, U = la.eigh(C)
-        r = min(k,d)
-        I = np.argsort(-1*np.abs(lambda_matrix))[range(r)]
+        lamb, U = la.eigh(C)
+        alamb = np.abs(lamb)
+        r = min(k, d, np.count_nonzero(alamb > np.finfo(float).eps))
+        I = np.argsort(-1*np.abs(alamb))[:r]
         # indices of r largest components of |λ|
         U = U[:, I]
-        lambda_matrix = lambda_matrix[I] 
+        lamb = lamb[I] 
         V = Q @ U
-        lambda_matrix = np.diag(lambda_matrix)
-        return V, lambda_matrix
+        return V, lamb
 
 
 class EVD2(EVDecomposer):
@@ -289,7 +281,7 @@ class EVD2(EVDecomposer):
         """
         self.rowsketcher = rs
 
-    def __call__(self, A, k, tol, s, rng):
+    def __call__(self, A, k, tol, over, rng):
         """
         Rely on a RowSketcher to obtain the matrix S for the sketching matrix
         S. Once we have S, we construct Y = A @ S and return Cholesky decomposition of 
@@ -298,7 +290,7 @@ class EVD2(EVDecomposer):
         assumptions on the RowSketcher's termination criteria beyond those
         listed below.
 
-        Return the eigen decomposition matrices (V, lambda_matrix),
+        Return the eigen decomposition matrices (V, lamb),
         based on a row sketched version of A.
         Use a Gaussian sketching matrix and pass over A a total of
         num_passes times.
@@ -309,7 +301,8 @@ class EVD2(EVDecomposer):
             Total number of passes over A. We require num_passes >= 2.
             
         A : Union[ndarray, spmatrix, LinearOperator]
-            Data matrix to approximate. A must be an n × n Hermitian PSD matrix. But we did not check PSD
+            Data matrix to approximate. A must be an n × n Hermitian PSD matrix.
+            But we did not check PSD
 
         k : int
             Target rank for the approximation of A: 0 < k < min(A.shape).
@@ -321,7 +314,7 @@ class EVD2(EVDecomposer):
             Target accuracy for the oversampled approximation of A: 0 < tol < np.inf.
             This parameter inherits from the QBDecomposer or RangeFinder class.
             
-        s  : int
+        over : int
             Auxiliary parameter for the QBDecomposer or RangeFinder.
 
         rng : Union[None, int, SeedSequence, BitGenerator, Generator]
@@ -333,9 +326,8 @@ class EVD2(EVDecomposer):
         V : ndarray
             Has shape (A.shape[0], k). Columns are orthonormal.
 
-        lambda_matrix : ndarray
-            Has shape (k,k). lambda_matrix is a diagonal matrix storing the eigenvalues of 
-            the matrix A
+        lamb : ndarray
+            Has shape (k,). lamb contains the estimated eigenvalues of A.
 
         """
         assert k > 0
@@ -344,7 +336,7 @@ class EVD2(EVDecomposer):
             assert tol >= 0
             assert tol < np.inf
         rng = np.random.default_rng(rng)
-        S = self.rowsketcher(A, k + s,rng)
+        S = self.rowsketcher(A, k + over, rng)
         n = A.shape[0]
         Y = A @ S
         epsilon_mach = np.finfo(float).eps # a temporary regularization parameter
@@ -356,18 +348,14 @@ class EVD2(EVDecomposer):
         # B = Y @ la.inv(R.T)
         B = (la.solve_triangular(R, Y.T, lower=True)).T
         # B has n rows and k + s columns
-        V, Sigma_matrix, Wh = la.svd(B)
+        V, sigma, Wh = la.svd(B)
         
         comp_list = [k]
-        for i in range(min(k, n)):
-            if Sigma_matrix[(i+1)]**2 <= nu:
+        for i in range(min(k, n)-1):
+            if sigma[(i+1)]**2 <= nu:
                 comp_list.append(i)
-        #comp_list constracuts the union from which we drop components next.        
-        r = min(comp_list) 
+        r = min(comp_list)
         # drop components that relied on regularization
-        lambda_matrix = (Sigma_matrix**2)[:r]-nu
+        lamb = (sigma**2)[:r]-nu
         V = V[:, :r]
-        lambda_matrix = np.diag(lambda_matrix)
-        return V, lambda_matrix
-
-
+        return V, lamb
