@@ -72,6 +72,7 @@ class RowSketcher:
         """
         raise NotImplementedError()
 
+
 class RS1(RowSketcher):
     """
     Powered Row Sketching Operator
