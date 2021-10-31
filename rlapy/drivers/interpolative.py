@@ -145,18 +145,19 @@ class CURDecomposition:
 
 class CURD1(CURDecomposition):
     """
-    Obtain a two-sided ID by any means, then extend to a CUR decomposition
-
+    Use a randomized method to select k rows of A, then use
+    full-rank QRCP to select k columns from the row-submatrix of A,
+    then return column indices, linking matrix, and row indices.
     """
+
     def __init__(self, rocs: RowOrColSelection):
         self.rocs = rocs
     
     def __call__(self, A, k, over, rng):
         rng = np.random.default_rng(rng)
         Is = self.rocs(A, k, over, axis=0, rng=rng)
-        Js = self.rocs(A[Is, :], k, 0, axis=1, rng=rng)
-        # ^ The second call to rocs isn't efficient, since
-        #   it's doing unnecessary sketching.  Better
+        _, _, Js = la.qr(A[Is, :], mode='economic', pivoting=True)
+        Js = Js[:k]
         A_s = A[Is, :][:, Js]
 
         def u_matmul(x):
