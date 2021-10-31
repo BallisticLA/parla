@@ -1,7 +1,7 @@
 import unittest
-import rlapy.comps.sketchers as sketchers
+import rlapy.comps.sketchers.aware as aware
 import numpy as np
-import rlapy.utils.sketching as usk
+import rlapy.comps.sketchers.oblivious as skob
 import rlapy.utils.linalg_wrappers as ulaw
 import rlapy.utils.stats as ustats
 import rlapy.tests.matmakers as matmakers
@@ -28,17 +28,17 @@ class TestPRSO1(unittest.TestCase):
     """
 
     def test_max_eig_orth(self):
-        ps = sketchers.RS1(sketch_op_gen=usk.gaussian_operator,
-                           num_pass=np.NaN,  # We'll set this later.
-                           stabilizer=ulaw.orth,
-                           passes_per_stab=1)
+        ps = aware.RS1(sketch_op_gen=skob.SkOpGA(),
+                       num_pass=np.NaN,  # We'll set this later.
+                       stabilizer=ulaw.orth,
+                       passes_per_stab=1)
         self._test_max_eig(ps)
 
     def test_max_eig_lu(self):
-        ps = sketchers.RS1(sketch_op_gen=usk.gaussian_operator,
-                           num_pass=np.NaN,  # We'll set this later.
-                           stabilizer=ulaw.lu_stabilize,
-                           passes_per_stab=1)
+        ps = aware.RS1(sketch_op_gen=skob.SkOpGA(),
+                       num_pass=np.NaN,  # We'll set this later.
+                       stabilizer=ulaw.lu_stabilize,
+                       passes_per_stab=1)
         self._test_max_eig(ps)
 
     def _test_max_eig(self, ps):

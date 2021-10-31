@@ -1,10 +1,9 @@
-import time
 import unittest
 import numpy as np
 import scipy.linalg as la
-from rlapy.drivers.interpolative import CURD1, ROCS1, RS1
-import rlapy.comps.sketchers as rsks
-import rlapy.utils.sketching as usk
+from rlapy.drivers.interpolative import CURD1, ROCS1
+from rlapy.comps.sketchers.aware import RS1
+import rlapy.comps.sketchers.oblivious as oblivious
 import rlapy.utils.linalg_wrappers as ulaw
 
 
@@ -20,7 +19,7 @@ def run_cur_test(m, rank, k, seed=0):
     # test index_set == False
 
     curd = CURD1(ROCS1(RS1(
-        sketch_op_gen=usk.gaussian_operator,
+        sketch_op_gen=oblivious.SkOpGA(),
         num_pass=num_pass,
         stabilizer=ulaw.orth,
         passes_per_stab=1

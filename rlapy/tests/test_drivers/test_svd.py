@@ -3,8 +3,8 @@ import numpy as np
 import scipy.linalg as la
 import rlapy.drivers.svd as rsvd
 import rlapy.comps.qb as rqb
-import rlapy.comps.sketchers as rsks
-import rlapy.utils.sketching as usk
+import rlapy.comps.sketchers.aware as rsks
+import rlapy.comps.sketchers.oblivious as oblivious
 import rlapy.utils.linalg_wrappers as ulaw
 import rlapy.tests.test_comps.test_qb as test_qb
 
@@ -97,7 +97,7 @@ class TestSVD1(TestSVDecomposer):
         #       Target rank + oversampling > exact rank
         #
         alg = rsvd.SVD1(rqb.QB1(rqb.RF1(rsks.RS1(
-                    sketch_op_gen=usk.gaussian_operator,
+                    sketch_op_gen=oblivious.SkOpGA(),
                     num_pass=1,
                     stabilizer=ulaw.orth,
                     passes_per_stab=1
@@ -122,7 +122,7 @@ class TestSVD1(TestSVDecomposer):
         # set the error tolerance to 0.25x the Frobenius norm of the matrix
         alg = rsvd.SVD1(rqb.QB2(
             rqb.RF1(rqb.RS1(
-                sketch_op_gen=usk.gaussian_operator,
+                sketch_op_gen=oblivious.SkOpGA(),
                 num_pass=0,
                 stabilizer=ulaw.orth,
                 passes_per_stab=1
@@ -152,7 +152,7 @@ class TestSVD1(TestSVDecomposer):
         # set the (relative) target tolerance to 1e-12.
         alg = rsvd.SVD1(rqb.QB2(
             rqb.RF1(rqb.RS1(
-                sketch_op_gen=usk.gaussian_operator,
+                sketch_op_gen=oblivious.SkOpGA(),
                 num_pass=0,
                 stabilizer=ulaw.orth,
                 passes_per_stab=1

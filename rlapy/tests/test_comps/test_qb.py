@@ -2,11 +2,11 @@ import unittest
 import math
 import numpy as np
 import scipy.linalg as la
-import rlapy.utils.sketching as usk
+import rlapy.comps.sketchers.oblivious as oblivious
 import rlapy.utils.linalg_wrappers as ulaw
 import rlapy.tests.matmakers as matmakers
 import rlapy.comps.qb as rqb
-import rlapy.comps.sketchers as rsks
+import rlapy.comps.sketchers.aware as rsks
 
 
 def tall_low_exact_rank():
@@ -163,7 +163,7 @@ class TestQB1(TestQBDecomposer):
 
     def test_exact(self):
         alg = rqb.QB1(rqb.RF1(rsks.RS1(
-            sketch_op_gen=usk.gaussian_operator,
+            sketch_op_gen=oblivious.SkOpGA(),
             num_pass=1,
             stabilizer=ulaw.orth,
             passes_per_stab=1
@@ -202,7 +202,7 @@ class TestQB1(TestQBDecomposer):
     # Same as above, except uses SJLT sketching matrix.
     def test_exact_sparse(self):
         alg = rqb.QB1(rqb.RF1(rsks.RS1(
-            sketch_op_gen=usk.sjlt_operator,
+            sketch_op_gen=oblivious.SkOpSJ(vec_nnz=8),
             num_pass=1,
             stabilizer=ulaw.orth,
             passes_per_stab=1
@@ -240,7 +240,7 @@ class TestQB1(TestQBDecomposer):
 
     def test_overestimate(self):
         alg = rqb.QB1(rqb.RF1(rsks.RS1(
-            sketch_op_gen=usk.gaussian_operator,
+            sketch_op_gen=oblivious.SkOpGA(),
             num_pass=1,
             stabilizer=ulaw.orth,
             passes_per_stab=1
@@ -267,7 +267,7 @@ class TestQB2(TestQBDecomposer):
     def test_exact(self):
         alg = rqb.QB2(
             rf=rqb.RF1(rsks.RS1(
-                sketch_op_gen=usk.gaussian_operator,
+                sketch_op_gen=oblivious.SkOpGA(),
                 num_pass=0,  # oblivious sketching operator
                 stabilizer=ulaw.orth,
                 passes_per_stab=1)),
@@ -311,7 +311,7 @@ class TestQB2(TestQBDecomposer):
     def test_estimated_tol(self):
         alg = rqb.QB2(
             rf=rqb.RF1(rsks.RS1(
-                sketch_op_gen=usk.gaussian_operator,
+                sketch_op_gen=oblivious.SkOpGA(),
                 num_pass=0,  # oblivious sketching operator
                 stabilizer=ulaw.orth,
                 passes_per_stab=1)),
@@ -346,7 +346,7 @@ class TestQB2(TestQBDecomposer):
     def test_exact_sparse(self):
         alg = rqb.QB2(
             rf=rqb.RF1(rsks.RS1(
-                sketch_op_gen=usk.sjlt_operator,
+                sketch_op_gen=oblivious.SkOpSJ(vec_nnz=8),
                 num_pass=0,  # oblivious sketching operator
                 stabilizer=ulaw.orth,
                 passes_per_stab=1)),
@@ -387,7 +387,7 @@ class TestQB2(TestQBDecomposer):
     def test_overestimate(self):
         alg = rqb.QB2(
             rf=rqb.RF1(rsks.RS1(
-                sketch_op_gen=usk.gaussian_operator,
+                sketch_op_gen=oblivious.SkOpGA(),
                 num_pass=0,  # oblivious sketching operator
                 stabilizer=ulaw.orth,
                 passes_per_stab=1)),
@@ -415,7 +415,7 @@ class TestQB3(TestQBDecomposer):
     def test_exact(self):
         alg = rqb.QB3(
             sk_op=rqb.RS1(
-            sketch_op_gen=usk.gaussian_operator,    
+            sketch_op_gen=oblivious.SkOpGA(),    
             num_pass=0,  # oblivious sketching operator
             stabilizer=ulaw.orth,
             passes_per_stab=1),
@@ -454,7 +454,7 @@ class TestQB3(TestQBDecomposer):
     def test_estimated_tol(self):
         alg = rqb.QB3(
             sk_op=rqb.RS1(
-            sketch_op_gen=usk.gaussian_operator,    
+            sketch_op_gen=oblivious.SkOpGA(),    
             num_pass=0,  # oblivious sketching operator
             stabilizer=ulaw.orth,
             passes_per_stab=1),
@@ -490,7 +490,7 @@ class TestQB3(TestQBDecomposer):
     def test_overestimate(self):
         alg = rqb.QB3(
             sk_op=rqb.RS1(
-            sketch_op_gen=usk.gaussian_operator,    
+            sketch_op_gen=oblivious.SkOpGA(),    
             num_pass=0,  # oblivious sketching operator
             stabilizer=ulaw.orth,
             passes_per_stab=1),

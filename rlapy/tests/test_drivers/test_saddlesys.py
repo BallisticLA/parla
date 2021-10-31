@@ -4,6 +4,7 @@ import scipy.linalg as la
 import rlapy.drivers.saddlesys as rsad
 import rlapy.comps.itersaddle as itersad
 import rlapy.utils.sketching as usk
+import rlapy.comps.sketchers.oblivious as oblivious
 
 
 def make_simple_prob(m, n, spectrum, delta, rng):
@@ -104,7 +105,7 @@ class TestSPS2(unittest.TestCase):
 
     def test_simple(self):
         alg = rsad.SPS2(
-            sketch_op_gen=usk.sjlt_operator,
+            sketch_op_gen=oblivious.SkOpSJ(),
             sampling_factor=3,
             iterative_solver=itersad.PcSS2()
         )

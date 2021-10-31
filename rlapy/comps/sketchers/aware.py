@@ -1,3 +1,6 @@
+"""
+Data-aware sketching methods.
+"""
 import numpy as np
 import rlapy.utils.sketching as usk
 import rlapy.utils.linalg_wrappers as ulaw

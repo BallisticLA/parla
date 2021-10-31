@@ -3,6 +3,7 @@ import numpy as np
 import scipy.linalg as la
 import rlapy.drivers.least_squares as rlsq
 import rlapy.utils.sketching as usk
+import rlapy.comps.sketchers.oblivious as oblivious
 import rlapy.utils.stats as ustats
 import rlapy.tests.matmakers as matmakers
 
@@ -246,38 +247,38 @@ class TestSAP1(TestOverLstsqSolver):
     """
 
     def test_srct(self):
-        sap = rlsq.SPO3(usk.srct_operator, sampling_factor=3)
+        sap = rlsq.SPO3(oblivious.SkOpTC(), sampling_factor=3)
         self.run_batch_sap(sap, 1e-8, 40, 100.0, 10.0)
         pass
 
     def test_gaussian(self):
-        sap = rlsq.SPO3(usk.gaussian_operator, sampling_factor=2)
+        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=2)
         self.run_batch_sap(sap, 1e-8, 40, 100.0, 10.0)
         pass
 
     def test_sjlt(self):
-        sap = rlsq.SPO3(usk.sjlt_operator, sampling_factor=3)
+        sap = rlsq.SPO3(oblivious.SkOpSJ(vec_nnz=8), sampling_factor=3)
         self.run_batch_sap(sap, 1e-8, 40, 100.0, 10.0)
         pass
 
     def test_consistent_tall(self):
         ath = consistent_tall()
-        sap = rlsq.SPO3(usk.gaussian_operator, sampling_factor=1)
+        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=1)
         self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
 
     def test_consistent_square(self):
         ath = consistent_square()
-        sap = rlsq.SPO3(usk.gaussian_operator, sampling_factor=1)
+        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=1)
         self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
 
     def test_inconsistent_orth(self):
         ath = inconsistent_orthog()
-        sap = rlsq.SPO3(usk.gaussian_operator, sampling_factor=3)
+        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=3)
         self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
 
     def test_inconsistent_gen(self):
         ath = inconsistent_gen()
-        sap = rlsq.SPO3(usk.gaussian_operator, sampling_factor=3)
+        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=3)
         self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
 
 
@@ -295,26 +296,26 @@ class TestSAP2(TestOverLstsqSolver):
     """
 
     def test_srct(self):
-        sap = rlsq.SPO1(usk.srct_operator,
+        sap = rlsq.SPO1(oblivious.SkOpTC(),
                         sampling_factor=3, smart_init=True)
         self.run_batch_sap(sap, 1e-8, 40, 100.0, 10.0)
         pass
 
     def test_gaussian(self):
-        sap = rlsq.SPO1(usk.gaussian_operator,
+        sap = rlsq.SPO1(oblivious.SkOpGA(),
                         sampling_factor=3, smart_init=True)
         self.run_batch_sap(sap, 1e-8, 40, 100.0, 10.0)
         sap.smart_init = False
         self.run_batch_sap(sap, 1e-8, 40, 100.0, 10.0)
 
     def test_sjlt(self):
-        sap = rlsq.SPO1(usk.sjlt_operator,
+        sap = rlsq.SPO1(oblivious.SkOpSJ(vec_nnz=8),
                         sampling_factor=3, smart_init=True)
         self.run_batch_sap(sap, 1e-8, 40, 100.0, 10.0)
 
     def test_consistent_tall(self):
         ath = consistent_tall()
-        sap = rlsq.SPO1(usk.gaussian_operator, 3, smart_init=False)
+        sap = rlsq.SPO1(oblivious.SkOpGA(), 3, smart_init=False)
         self.run_consistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
         sap.sampling_factor = 1
         sap.smart_init = True
@@ -322,7 +323,7 @@ class TestSAP2(TestOverLstsqSolver):
 
     def test_consistent_lowrank(self):
         ath = consistent_lowrank()
-        sap = rlsq.SPO1(usk.gaussian_operator, 3, smart_init=False)
+        sap = rlsq.SPO1(oblivious.SkOpGA(), 3, smart_init=False)
         self.run_consistent(ath, sap, 0.0, 100, 1e-6, self.SEEDS)
         sap.sampling_factor = 1
         sap.smart_init = True
@@ -330,7 +331,7 @@ class TestSAP2(TestOverLstsqSolver):
 
     def test_consistent_square(self):
         ath = consistent_square()
-        sap = rlsq.SPO1(usk.gaussian_operator, 1, smart_init=False)
+        sap = rlsq.SPO1(oblivious.SkOpGA(), 1, smart_init=False)
         self.run_consistent(ath, sap, 0.0, 100, 1e-6, self.SEEDS)
         sap.sampling_factor = 1
         sap.smart_init = True
@@ -338,14 +339,14 @@ class TestSAP2(TestOverLstsqSolver):
 
     def test_inconsistent_orth(self):
         ath = inconsistent_orthog()
-        sap = rlsq.SPO1(usk.gaussian_operator, 3, smart_init=False)
+        sap = rlsq.SPO1(oblivious.SkOpGA(), 3, smart_init=False)
         self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
         sap.smart_init = True
         self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
 
     def test_inconsistent_gen(self):
         ath = inconsistent_gen()
-        sap = rlsq.SPO1(usk.gaussian_operator, 3, smart_init=False)
+        sap = rlsq.SPO1(oblivious.SkOpGA(), 3, smart_init=False)
         self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
         sap.smart_init = True
         self.run_inconsistent(ath, sap, 1e-12, 50, 1e-6, self.SEEDS)
@@ -367,19 +368,19 @@ class TestSAS(unittest.TestCase):
 
     def test_convergence_rate_gaussian(self):
         for seed in TestSAS.SEEDS:
-            sas = rlsq.SSO1(usk.gaussian_operator, np.NaN)
+            sas = rlsq.SSO1(oblivious.SkOpGA(), np.NaN)
             self._test_convergence_rate(sas, seed)
         pass
 
     def test_convergence_rate_srct(self):
         for seed in TestSAS.SEEDS:
-            sas = rlsq.SSO1(usk.srct_operator, np.NaN)
+            sas = rlsq.SSO1(oblivious.SkOpTC(), np.NaN)
             self._test_convergence_rate(sas, seed)
         pass
 
     def test_convergence_rate_sjlt(self):
         for seed in TestSAS.SEEDS:
-            sas = rlsq.SSO1(usk.sjlt_operator, np.NaN)
+            sas = rlsq.SSO1(oblivious.SkOpSJ(vec_nnz=8), np.NaN)
             self._test_convergence_rate(sas, seed)
         pass
 

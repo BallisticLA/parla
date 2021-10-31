@@ -11,8 +11,8 @@ import warnings
 import numpy as np
 import scipy.linalg as la
 import rlapy.utils.linalg_wrappers as ulaw
-from rlapy.utils.sketching import gaussian_operator
-from rlapy.comps.sketchers import RowSketcher, RS1
+import rlapy.comps.sketchers.oblivious as oblivious
+from rlapy.comps.sketchers.aware import RowSketcher, RS1
 
 ###############################################################################
 #       Classic implementations, exposing fewest possible parameters.
@@ -62,7 +62,7 @@ def power_rangefinder(A, k, num_pass, rng):
     lines of [ZM:2020, Algorithm 3.3] to allow for any number of passes over A.
     """
     rng = np.random.default_rng(rng)
-    rso_ = RS1(sketch_op_gen=gaussian_operator,
+    rso_ = RS1(sketch_op_gen=oblivious.SkOpGA(),
                num_pass=num_pass - 1,
                stabilizer=ulaw.orth,
                passes_per_stab=1)

@@ -2,9 +2,9 @@ import warnings
 
 import numpy as np
 import scipy.linalg as la
-from rlapy.utils.sketching import gaussian_operator
+import rlapy.comps.sketchers.oblivious as oblivious
 from rlapy.comps.rangefinders import RangeFinder, RF1
-from rlapy.comps.sketchers import RowSketcher, RS1
+from rlapy.comps.sketchers.aware import RowSketcher, RS1
 import rlapy.utils.linalg_wrappers as ulaw
 
 
@@ -75,7 +75,7 @@ def qb(num_passes, A, k, rng):
     where their implementation requires >= 2 steps.
     """
     rng = np.random.default_rng(rng)
-    rso_ = RS1(gaussian_operator, num_passes - 2, ulaw.orth, 1)
+    rso_ = RS1(oblivious.SkOpGA(), num_passes - 2, ulaw.orth, 1)
     rf_ = RF1(rso_)
     qb_ = QB1(rf_)
     Q, B = qb_(A, k, np.NaN, rng)
@@ -160,7 +160,7 @@ def qb_b(inner_num_pass, blk, overwrite_A, A, k, tol, rng):
     information.
     """
     rng = np.random.default_rng(rng)
-    rso_ = RS1(gaussian_operator, inner_num_pass - 2, ulaw.orth, 1)
+    rso_ = RS1(oblivious.SkOpGA(), inner_num_pass - 2, ulaw.orth, 1)
     rf_ = RF1(rso_)
     qb_ = QB2(rf_, blk, overwrite_A)
     Q, B = qb_(A, k, tol, rng)
@@ -229,7 +229,7 @@ def qb_b_pe(num_passes, blk, A, k, tol, rng):
     passes over A.
     """
     rng = np.random.default_rng(rng)
-    sk_op = RS1(gaussian_operator, num_passes, ulaw.orth, 1)
+    sk_op = RS1(oblivious.SkOpGA(), num_passes, ulaw.orth, 1)
     Q, B = QB3(sk_op, blk)(A, k, tol, rng)
     return Q, B
 

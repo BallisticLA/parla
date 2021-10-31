@@ -1,8 +1,8 @@
 import numpy as np
 import scipy.linalg as la
-from rlapy.utils.sketching import gaussian_operator
+import rlapy.comps.sketchers.oblivious as oblivious
 from rlapy.comps.rangefinders import RangeFinder, RF1
-from rlapy.comps.sketchers import RowSketcher, RS1
+from rlapy.comps.sketchers.aware import RowSketcher, RS1
 from rlapy.comps.qb import QBDecomposer, QB1
 import rlapy.utils.linalg_wrappers as ulaw
 
@@ -71,7 +71,7 @@ def evd1(num_passes, A, k, tol, s, rng):
     EVDecomposer: adapted from the QB-based [HMT11, Algorithm 5.3]
     """
     rng = np.random.default_rng(rng)
-    rso_ = RS1(gaussian_operator, num_passes - 2, ulaw.orth, 1)
+    rso_ = RS1(oblivious.SkOpGA(), num_passes - 2, ulaw.orth, 1)
     rf_ = RF1(rso_)
     qb_ = QB1(rf_)
     evd_ = EVD1(qb_)
@@ -137,7 +137,7 @@ def evd2(num_passes, A, k, tol, s, rng):
     EVDecomposer: psd matrices only, [TYUC17a, Algorithm 3]
     """
     rng = np.random.default_rng(rng)
-    rso_ = RS1(gaussian_operator, num_passes - 2, ulaw.orth, 1)
+    rso_ = RS1(oblivious.SkOpGA(), num_passes - 2, ulaw.orth, 1)
     evd_ = EVD2(rso_)
     V, lambda_matrix = evd_(A, k, tol, s, rng)
     return V, lambda_matrix

@@ -1,11 +1,7 @@
 import numpy as np
 import scipy.linalg as la
-from rlapy.comps.sketchers import RowSketcher
+from rlapy.comps.sketchers.aware import RowSketcher
 import rlapy.comps.interpolative as id_comps
-import rlapy.utils.sketching as usk
-import rlapy.utils.linalg_wrappers as ulaw
-from rlapy.comps.sketchers import RS1
-from scipy.sparse.linalg import LinearOperator
 
 
 class OneSidedID:
