@@ -87,7 +87,7 @@ def qb_b(inner_num_pass, blk, overwrite_A, A, k, tol, rng):
     Iteratively build an approximate QB factorization of A,
     which terminates once either of the following conditions
     is satisfied
-        (1)  || A - Q B ||_Fro <= tol
+        (1)  || A - Q B ||_Fro <= tol * || A ||_Fro
     or
         (2) Q has k columns.
 
@@ -116,8 +116,8 @@ def qb_b(inner_num_pass, blk, overwrite_A, A, k, tol, rng):
         valid way of ensuring Q.shape[1] == k on exit.
 
     tol : float
-        Terminate if ||A - Q B||_Fro <= tol. Setting k = min(A.shape) is a
-        valid way of ensuring ||A - Q B||_Fro <= tol on exit.
+        Terminate if ||A - Q B||_Fro <= tol * || A ||_Fro. Setting k = min(A.shape)
+        is a valid way to ensure that this is the exit condition.
 
     rng : Union[None, int, SeedSequence, BitGenerator, Generator]
         Determines the numpy Generator object that manages randomness
@@ -172,7 +172,7 @@ def qb_b_pe(num_passes, blk, A, k, tol, rng):
     Iteratively build an approximate QB factorization of A,
     which terminates once either of the following conditions
     is satisfied
-        (1)  || A - Q B ||_Fro <= tol
+        (1)  || A - Q B ||_Fro <= tol * || A ||_Fro
     or
         (2) Q has k columns.
 
@@ -199,7 +199,7 @@ def qb_b_pe(num_passes, blk, A, k, tol, rng):
         Terminate if Q.shape[1] == k.
 
     tol : float
-        Terminate if ||A - Q B||_Fro <= tol.
+        Terminate if ||A - Q B||_Fro <= tol * || A ||_Fro.
 
     rng : Union[None, int, SeedSequence, BitGenerator, Generator]
         Determines the numpy Generator object that manages randomness
@@ -261,10 +261,10 @@ class QBDecomposer:
             tolerance has been met.
 
         tol : float
-            Target for the error  ||A - Q B||: 0 <= tol < np.inf. Only
-            certain implementations are able to control approximation error.
+            Target for the relative error  ||A - Q B|| / ||A||: 0 <= tol < np.inf.
+            Only certain implementations are able to control approximation error.
             Those implementations may return a matrix Q with fewer than k
-            columns if ||A - Q B|| <= tol. Assuming k < rank(A) and that the
+            columns if ||A - Q B|| <= ||A|| * tol. Assuming k < rank(A) and that the
             implementation can compute ||A - Q B|| accurately, setting
             tol=0 means the implementation will return Q, B with exact rank k.
 
@@ -356,9 +356,9 @@ class QB2(QBDecomposer):
     Common uses of a QB2 object "qb_alg"
 
         qb_alg(A, min(A.shape), tol, rng) will return
-        an approximation (Q, B) where ||A - Q B || <= tol.
+        an approximation (Q, B) where ||A - Q B ||_Fro <= tol * ||A||_Fro.
 
-        qb_alg(A, k, 0, rng) will return (Q, B)
+        qb_alg(A, k, 0.0, rng) will return (Q, B)
         where Q has k columns.
     """
 
