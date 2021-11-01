@@ -1,7 +1,7 @@
 # RLApy
 This is a Python package for prototyping the *mathematical* structure of a future C++ library for randomized linear algebra.
 There are no plans to distribute this Python package through PyPI or conda.
-An analogous Matlab library can be found [here](https://github.com/TeachRaccooon/Templates-for-Randomized-Numerical-Linear-Algebra/tree/main/drivers/least_squares).
+An analogous Matlab library can be found [here](https://github.com/TeachRaccooon/Templates-for-Randomized-Numerical-Linear-Algebra/).
 The Matlab library is not quite as general as this Python package.
 
 ## How to install
