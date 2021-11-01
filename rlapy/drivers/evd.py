@@ -309,7 +309,7 @@ class EVD2(EVDecomposer):
             This class cannot control accuracy, and ignores this parameter.
             
         over : int
-            Auxiliary parameter for the QBDecomposer or RangeFinder.
+            Define the initial Nystrom approximation with a sketch of rank (k + over).
 
         rng : Union[None, int, SeedSequence, BitGenerator, Generator]
             Determines the numpy Generator object that manages randomness
@@ -323,6 +323,14 @@ class EVD2(EVDecomposer):
         lamb : ndarray
             Has shape (k,). lamb contains the estimated eigenvalues of A.
 
+        Notes
+        -----
+        This function adapts Algorithm 3 from
+
+            Joel A Tropp, Alp Yurtsever, Madeleine Udell, and Volkan Cevher.
+            "Fixed-rank approximation of a positive-semidefinite matrix from streaming data."
+            Advances in neural information processing systems, 2017.
+            (available at `arXiv <https://arxiv.org/abs/1706.05736>`_).
         """
         assert k > 0
         assert k <= min(A.shape)
@@ -342,7 +350,6 @@ class EVD2(EVDecomposer):
         Y = Y + nu*S
         R = la.cholesky(S.T @ Y, lower=True)
         # R is upper-triangular and R^T @ R = S^T @ Y = S^T @ (A + nu*I)S
-        # B = Y @ la.inv(R.T)
         B = (la.solve_triangular(R, Y.T, lower=True)).T
         # B has n rows and k + s columns
         V, sigma, Wh = la.svd(B)
