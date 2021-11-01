@@ -149,8 +149,6 @@ class TestTSIDs(unittest.TestCase):
         alg = TSID1(osid)
         m, n = 100, 30
         run_tsid_test(alg, m, n, rank=30, k=27, over=3, test_tol=0.05, seed=0)
-        # ^ It doesn't make sense that I have to have a different tolerance here
-        #   than is used in the one-sided ID tests.
         run_tsid_test(alg, m, n, rank=30, k=25, over=4, test_tol=0.3, seed=0)
         # Re-run tests with wide data matrices
         m, n = 30, 100

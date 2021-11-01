@@ -119,9 +119,12 @@ class TSID1(TwoSidedID):
 
     def __call__(self, A, k, over, rng):
         rng = np.random.default_rng(rng)
-        # TODO: start with col ID if A is tall
-        Z, Is = self.osid(A, k, over, axis=0, rng=rng)
-        X, Js = id_comps.qrcp_osid(A[Is, :], k, axis=1)
+        if A.shape[0] > A.shape[1]:
+            X, Js = self.osid(A, k, over, axis=1, rng=rng)
+            Z, Is = id_comps.qrcp_osid(A[:, Js], k, axis=0)
+        else:
+            Z, Is = self.osid(A, k, over, axis=0, rng=rng)
+            X, Js = id_comps.qrcp_osid(A[Is, :], k, axis=1)
         return Z, Is, X, Js
 
 
