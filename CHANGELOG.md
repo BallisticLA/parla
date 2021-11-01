@@ -7,12 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 # [0.1.1] - working version
 ## Added
  - drivers: Sketch-and-Precondition for Saddle point systems (SPS2, name used in design doc)
+ - drivers: QB-backed eigenvalue decomposition (EVD1)
+ - drivers: Nystrom-backed eigenvalue decomposition (EVD2)
+ - drivers: one-sided ID by QRCP of a sketch (OSID1, OSID2)
+ - drivers: two-sided ID in the style of VM2015 (TSID1)
+ - drivers: CUR in the style of VM2015 (CURD1)
+ - comps: sketchers/oblivious.py (object-oriented wrappers)
+ - comps: subset selection based on QRCP of a sketch (ROCS1)
 ## Changed
  - drivers: class names for least squares
     * "SPO": Sketch-and-Precondition for Overdetermined least squares
     * SAS1 --> SPO3 (name used in the design doc)
     * SAS2 --> SPO1 (name used in the design doc)
  - comps: renamed QBFactorizer to QBDecomposer (similarly for TestQBFactorizer)
+ - comps: moved and renamed comps/sketchers.py to comps/sketchers/aware.py.
 
 # [0.1.0] - superseded on Oct 25, 2021
 ## Added
