@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     * "SPO": Sketch-and-Precondition for Overdetermined least squares
     * SAS1 --> SPO3 (name used in the design doc)
     * SAS2 --> SPO1 (name used in the design doc)
+ - drivers: least squares solvers return two values: a vector (for x) and a dict (for a log).
  - comps: renamed QBFactorizer to QBDecomposer (similarly for TestQBFactorizer)
  - comps: moved and renamed comps/sketchers.py to comps/sketchers/aware.py.
 

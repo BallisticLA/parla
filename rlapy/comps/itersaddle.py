@@ -70,7 +70,7 @@ class PcSS2(PrecondSaddleSolver):
             y = result[0]
             if delta > 0:
                 y = y[:m]
-                x = (c - A.T @ y) / delta
+                x = (A.T @ y - c) / delta
             else:
                 x = np.NaN * np.empty(n)
             result = (x, y) + result[1:]

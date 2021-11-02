@@ -400,5 +400,71 @@ class SPO1(OverLstsqSolver):
 class UnderLstsqSolver:
     """Solver for underdetermined least squares problems"""
 
-    def __call__(self, A, c, tol, iter_lim, rng):
+    def __call__(self, A, c, tol, iter_lim, rng, logging=False):
         raise NotImplementedError()
+
+
+class SPU1(UnderLstsqSolver):
+    """
+    SVD-based sketch-and-precondition for underdetermined least squares
+
+        min ||y||
+        s.t. A' y = c
+
+    where A is tall.
+    """
+
+    def __int__(self, sketch_op_gen, sampling_factor: int):
+        self.sketch_op_gen = sketch_op_gen
+        self.sampling_factor = sampling_factor
+        self.iterative_solver = ris.PcSS2()  # implements LSQR
+
+    def __call__(self, A, c, tol, iter_lim, rng, logging=False):
+        n_rows, n_cols = A.shape
+        d = dim_checks(self.sampling_factor, n_rows, n_cols)
+        if not np.isnan(tol):
+            assert tol >= 0
+            assert tol < np.inf
+        rng = np.random.default_rng(rng)
+
+        log = {'time_sketch': -1.0,
+               'time_factor': -1.0,
+               'time_iterate': -1.0,
+               'times': np.empty((1,)),
+               'arnorms': np.empty((1,))}
+
+        if logging:
+            quick_time = time.time
+        else:
+            quick_time = lambda: 0.0
+
+        # Sketch the data matrix
+        tic = quick_time()
+        S = self.sketch_op_gen(d, n_rows, rng)
+        A_ske = S @ A
+        log['time_sketch'] = quick_time() - tic
+
+        # Factor the sketch
+        #   We also measure the time to scale the right singular vectors
+        #   as needed for the preconditioner. SPO3 doesn't have a
+        #   directly comparable cost.
+        tic = quick_time()
+        U, sigma, Vh = la.svd(A_ske, overwrite_a=True, check_finite=False,
+                              full_matrices=False)
+        eps = np.finfo(float).eps
+        rank = np.count_nonzero(sigma > sigma[0] * n_cols * eps)
+        M = Vh[:rank, :].T / sigma[:rank]
+        log['time_factor'] = quick_time() - tic
+
+        # No presolve
+        log['time_presolve'] = 0
+
+        # Iterative phase
+        tic = quick_time()
+        res = self.iterative_solver(A, None, c, 0.0, tol, iter_lim, M, False, None)
+        toc = quick_time()
+        log['time_iterate'] = toc - tic
+        y_star = res[1]
+
+        return y_star, log
+
