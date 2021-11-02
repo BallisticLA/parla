@@ -414,7 +414,7 @@ class SPU1(UnderLstsqSolver):
     where A is tall.
     """
 
-    def __int__(self, sketch_op_gen, sampling_factor: int):
+    def __init__(self, sketch_op_gen, sampling_factor: int):
         self.sketch_op_gen = sketch_op_gen
         self.sampling_factor = sampling_factor
         self.iterative_solver = ris.PcSS2()  # implements LSQR

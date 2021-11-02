@@ -44,28 +44,30 @@ class PcSS2(PrecondSaddleSolver):
 
     def __call__(self, A, b, c, delta, tol, iter_lim, R, upper_tri, z0):
         m, n = A.shape
-        k = 1 if b.ndim == 1 else b.shape[1]
+        k = 1 if (b is None or b.ndim == 1) else b.shape[1]
 
         if upper_tri:
             A_pc = a_times_inv_r(A, delta, R, k)
-            M_func = lambda z: la.solve_triangular(R, z, lower=False)
+            M_fwd = lambda z: la.solve_triangular(R, z, lower=False)
+            M_adj = lambda w: la.solve_triangular(R, w, 'T', lower=False)
         else:
             A_pc = a_times_m(A, delta, R, k)
-            M_func = lambda z: R @ z
+            M_fwd = lambda z: R @ z
+            M_adj = lambda w: R.T @ w
 
         if c is None or la.norm(c) == 0:
             # Overdetermined least squares
             if delta > 0:
                 b = np.concatenate((b, np.zeros(n)))
             result = lsqr(A_pc, b, atol=tol, btol=tol, iter_lim=iter_lim, x0=z0)
-            x = M_func(result[0])
+            x = M_fwd(result[0])
             y = b[:m] - A @ x
             result = (x, y) + result[1:]
             return result
 
         elif b is None or la.norm(b) == 0:
             # Underdetermined least squares
-            c_pc = M_func(c)
+            c_pc = M_adj(c)
             result = lsqr(A_pc.T, c_pc, atol=tol, btol=tol, iter_lim=iter_lim)
             y = result[0]
             if delta > 0:

@@ -116,22 +116,22 @@ class TestSPS2(unittest.TestCase):
 
         delta = 0.0
         ath = make_simple_prob(m, n, spectrum, delta, rng)
-        xy = alg(ath.A, ath.b, ath.c, ath.delta,
-                 tol=1e-12, iter_lim=50,
-                 rng=rng, logging=False)
-        ath.x_approx = xy[0]
-        ath.y_approx = xy[1]
+        x, y, log = alg(ath.A, ath.b, ath.c, ath.delta,
+                        tol=1e-12, iter_lim=50,
+                        rng=rng, logging=False)
+        ath.x_approx = x
+        ath.y_approx = y
         ath.test_normal_eq_residual(tol=1e-6)
         ath.test_block_residual(tol=1e-6)
         ath.test_delta_xy(tol=1e-6)
 
         delta = 1.0
         ath = make_simple_prob(m, n, spectrum, delta, rng)
-        xy = alg(ath.A, ath.b, ath.c, ath.delta,
-                 tol=1e-12, iter_lim=50,
-                 rng=rng, logging=False)
-        ath.x_approx = xy[0]
-        ath.y_approx = xy[1]
+        x, y, log = alg(ath.A, ath.b, ath.c, ath.delta,
+                        tol=1e-12, iter_lim=50,
+                        rng=rng, logging=False)
+        ath.x_approx = x
+        ath.y_approx = y
         ath.test_normal_eq_residual(tol=1e-6)
         ath.test_block_residual(tol=1e-6)
         ath.test_delta_xy(tol=1e-6)

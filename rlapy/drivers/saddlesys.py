@@ -21,7 +21,7 @@ class SPS2(SaddleSolver):
         self.sketch_op_gen = sketch_op_gen
         self.sampling_factor = sampling_factor
         self.iterative_solver = iterative_solver
-        self.log = {'time_sketch': -1.0,
+        log = {'time_sketch': -1.0,
                     'time_factor': -1.0,
                     'time_convert': -1.0,
                     'time_presolve': -1.0,
@@ -42,6 +42,14 @@ class SPS2(SaddleSolver):
 
         if b is None:
             b = np.zeros(m)
+            
+        log = {'time_sketch': -1.0,
+               'time_factor': -1.0,
+               'time_convert': -1.0,
+               'time_presolve': -1.0,
+               'time_iterate': -1.0,
+               'times': np.empty((1,)),
+               'arnorms': np.empty((1,))}
 
         if logging:
             quick_time = time.time
@@ -55,7 +63,7 @@ class SPS2(SaddleSolver):
         S = self.sketch_op_gen(d, m, rng)
         A_ske = S @ A
         A_ske = rpc.a_lift(A_ske, sqrt_delta)  # returns A_ske when delta=0.
-        self.log['time_sketch'] = quick_time() - tic
+        log['time_sketch'] = quick_time() - tic
 
         # Factor the sketch
         tic = quick_time()
@@ -67,7 +75,7 @@ class SPS2(SaddleSolver):
         U = U[:, :rank]
         sigma = sigma[:rank]
         M = Vh.T / sigma
-        self.log['time_factor'] = quick_time() - tic
+        log['time_factor'] = quick_time() - tic
 
         # Convert to overdetermined least squares (if applicable).
         tic = quick_time()
@@ -78,7 +86,7 @@ class SPS2(SaddleSolver):
             b_aug[:m] -= S.T @ v[:d]
             if delta > 0:
                 b_aug[m:] -= v[d:]
-        self.log['time_convert'] = quick_time() - tic
+        log['time_convert'] = quick_time() - tic
 
         # Presolve
         tic = quick_time()
@@ -88,13 +96,13 @@ class SPS2(SaddleSolver):
         x_ske = M @ z_ske
         if la.norm(b_aug - A_aug @ x_ske, ord=2) >= la.norm(b_aug, ord=2):
             z_ske = None
-        self.log['time_presolve'] = quick_time() - tic
+        log['time_presolve'] = quick_time() - tic
 
         # Main iterative phase
         tic = quick_time()
         res = self.iterative_solver(A_aug, b_aug, None, 0.0,
                                     tol, iter_lim, M, False, z_ske)
-        self.log['time_iterate'] = quick_time() - tic
+        log['time_iterate'] = quick_time() - tic
         x_star = res[0]
         y_star = b - A @ x_star
         res = (x_star, y_star) + res[2:]
@@ -102,19 +110,18 @@ class SPS2(SaddleSolver):
         # Finish timings
         if logging:
             iters = res[3]
-            time_setup = self.log['time_sketch']
-            time_setup += self.log['time_factor']
-            time_setup += self.log['time_convert']
-            iterating = np.linspace(0, self.log['time_iterate'],
-                                    iters, endpoint=True)
-            cumulative = time_setup + self.log['time_presolve'] + iterating
+            time_setup = log['time_sketch']
+            time_setup += log['time_factor']
+            time_setup += log['time_convert']
+            iterating = np.linspace(0, log['time_iterate'], iters, endpoint=True)
+            cumulative = time_setup + log['time_presolve'] + iterating
             times = np.concatenate(([time_setup], cumulative))
-            self.log['times'] = times
+            log['times'] = times
             arnorms = res[8][:iters]
             ar0 = M.T @ (A_aug.T @ b_aug)
-            self.log['arnorms'] = np.concatenate(([la.norm(ar0)], arnorms))
+            log['arnorms'] = np.concatenate(([la.norm(ar0)], arnorms))
 
-            self.log['x'] = x_star
-            self.log['y'] = y_star
+            log['x'] = x_star
+            log['y'] = y_star
 
-        return x_star, y_star
+        return x_star, y_star, log
