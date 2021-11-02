@@ -64,12 +64,8 @@ class OverLstsqSolver:
             x_star.shape == (A.shape[1],). Approximate solution to the least
             squares problem under consideration.
 
-        Notes
-        -----
-        Implementations are allowed to store problem-dependent metadata
-        (such as the random sketch of A) after a call to self.__call__(...).
-        Any information other than the return value "x_star" must be recorded
-        as metadata.
+        log : dict
+            Keyed by strings; contains algorithm-specific metadata.
         """
         raise NotImplementedError()
 
@@ -113,7 +109,7 @@ class SSO1(OverLstsqSolver):
         self.lapack_driver = lapack_driver
         self.overwrite_sketch = overwrite_sketch
 
-    def __call__(self, A, b, delta, tol, iter_lim, rng):
+    def __call__(self, A, b, delta, tol, iter_lim, rng, logging=False):
         if not np.isnan(tol):
             msg = """
             This OverLstsqSolver implementation cannot directly control
@@ -129,9 +125,24 @@ class SSO1(OverLstsqSolver):
         n_rows, n_cols = A.shape
         d = dim_checks(self.sampling_factor, n_rows, n_cols)
         rng = np.random.default_rng(rng)
+
+        log = {
+            'time_sketch': -1.0,
+            'time_solve': -1.0,
+        }
+
+        if logging:
+            quick_time = time.time
+        else:
+            quick_time = lambda: 0.0
+
+        tic = quick_time()
         S = self.sketch_op_gen(d, n_rows, rng)
         A_ske = S @ A
         b_ske = S @ b
+        log['time_sketch'] = quick_time() - tic
+
+        tic = quick_time()
         if delta > 0:
             A_ske = np.vstack((A_ske, (delta**0.5) * np.eye(n_cols)))
             b_ske = np.concatenate((b_ske, np.zeros(n_cols)))
@@ -139,8 +150,10 @@ class SSO1(OverLstsqSolver):
                        cond=None, overwrite_a=self.overwrite_sketch,
                        overwrite_b=True, check_finite=False,
                        lapack_driver=self.lapack_driver)
+        log['time_solve'] = quick_time() - tic
+
         x_ske = res[0]
-        return x_ske
+        return x_ske, log
 
 
 class SPO3(OverLstsqSolver):
@@ -182,17 +195,6 @@ class SPO3(OverLstsqSolver):
         self.sketch_op_gen = sketch_op_gen
         self.sampling_factor = sampling_factor
         self.iterative_solver = ris.PcSS2()  # implements LSQR
-        # This implementation has the option of logging detailed information
-        # on runtime and the rate at which (preconditioned) normal equation
-        # error decays while LSQR runs. This isn't part of the public API
-        # and might change. Refer to __call__ for precise meaning.
-        self.log = {'time_sketch': -1.0,
-                    'time_factor': -1.0,
-                    'time_presolve': -1.0,
-                    'time_iterate': -1.0,
-                    'times': np.empty((1,)),
-                    'arnorms': np.empty((1,)),
-                    'x': np.empty((1,))}
 
     def __call__(self, A, b, delta, tol, iter_lim, rng, logging=False):
         n_rows, n_cols = A.shape
@@ -201,7 +203,14 @@ class SPO3(OverLstsqSolver):
             assert tol >= 0
             assert tol < np.inf
         rng = np.random.default_rng(rng)
-        
+
+        log = {'time_sketch': -1.0,
+               'time_factor': -1.0,
+               'time_presolve': -1.0,
+               'time_iterate': -1.0,
+               'times': np.empty((1,)),
+               'arnorms': np.empty((1,))}
+
         if logging:
             quick_time = time.time
         else:
@@ -211,14 +220,14 @@ class SPO3(OverLstsqSolver):
         tic = quick_time()
         S = self.sketch_op_gen(d, n_rows, rng)
         A_ske = S @ A
-        self.log['time_sketch'] = quick_time() - tic
+        log['time_sketch'] = quick_time() - tic
 
         # Factor the sketch
         tic = quick_time()
         if delta > 0:
             A_ske = np.vstack((A_ske, np.sqrt(delta)*np.eye(n_cols)))
         Q, R = la.qr(A_ske, overwrite_a=True, mode='economic')
-        self.log['time_factor'] = quick_time() - tic
+        log['time_factor'] = quick_time() - tic
 
         # Sketch-and-solve type preprocessing
         tic = quick_time()
@@ -227,12 +236,12 @@ class SPO3(OverLstsqSolver):
         x_ske = la.solve_triangular(R, z_ske, lower=False)
         if np.linalg.norm(A @ x_ske - b) >= np.linalg.norm(b):
             z_ske = None
-        self.log['time_presolve'] = quick_time() - tic
+        log['time_presolve'] = quick_time() - tic
 
         # Iterative phase
         tic = quick_time()
         res = self.iterative_solver(A, b, None, 0.0, tol, iter_lim, R, True, z_ske)
-        self.log['time_iterate'] = quick_time() - tic
+        log['time_iterate'] = quick_time() - tic
 
         if logging:
             iters = res[3]
@@ -242,13 +251,13 @@ class SPO3(OverLstsqSolver):
             # Amortizing the time taken by a single step of LSQR is reasonable,
             # because convergence behavior can be seen by how the normal
             # equation error decays from one iteration to the next.
-            time_setup = self.log['time_sketch']
-            time_setup += self.log['time_factor']
-            amortized = np.linspace(0, self.log['time_iterate'],
+            time_setup = log['time_sketch']
+            time_setup += log['time_factor']
+            amortized = np.linspace(0, log['time_iterate'],
                                     iters, endpoint=True)
-            cumulative = time_setup + self.log['time_presolve'] + amortized
+            cumulative = time_setup + log['time_presolve'] + amortized
             times = np.concatenate(([time_setup], cumulative))
-            self.log['times'] = times
+            log['times'] = times
 
             arnorms = res[8][:iters]
             # Record a vector of (preconditioned) normal equation errors. Treat
@@ -258,10 +267,9 @@ class SPO3(OverLstsqSolver):
             ar0 = la.solve_triangular(R, ar0, 'T', lower=False, overwrite_b=True)
             ar0norm = la.norm(ar0)
             arnorms = np.concatenate(([ar0norm], arnorms))
-            self.log['x'] = res[0]
-            self.log['arnorms'] = arnorms
+            log['arnorms'] = arnorms
 
-        return res[0]
+        return res[0], log
 
 
 class SPO1(OverLstsqSolver):
@@ -293,17 +301,6 @@ class SPO1(OverLstsqSolver):
         self.sampling_factor = sampling_factor
         self.smart_init = smart_init
         self.iterative_solver = ris.PcSS2()  # LSQR
-        # This implementation has the option of logging detailed information
-        # on runtime and the rate at which (preconditioned) normal equation
-        # error decays while LSQR runs. This isn't part of the public API
-        # and might change. Refer to __call__ for precise meaning.
-        self.log = {'time_sketch': -1.0,
-                    'time_factor': -1.0,
-                    'time_presolve': -1.0,
-                    'time_iterate': -1.0,
-                    'times': np.empty((1,)),
-                    'arnorms': np.empty((1,)),
-                    'x': np.empty((1,))}
 
     def __call__(self, A, b, delta, tol, iter_lim, rng, logging=False):
         n_rows, n_cols = A.shape
@@ -312,6 +309,13 @@ class SPO1(OverLstsqSolver):
             assert tol >= 0
             assert tol < np.inf
         rng = np.random.default_rng(rng)
+
+        log = {'time_sketch': -1.0,
+               'time_factor': -1.0,
+               'time_presolve': -1.0,
+               'time_iterate': -1.0,
+               'times': np.empty((1,)),
+               'arnorms': np.empty((1,))}
 
         if logging:
             quick_time = time.time
@@ -322,7 +326,7 @@ class SPO1(OverLstsqSolver):
         tic = quick_time()
         S = self.sketch_op_gen(d, n_rows, rng)
         A_ske = S @ A
-        self.log['time_sketch'] = quick_time() - tic
+        log['time_sketch'] = quick_time() - tic
 
         # Factor the sketch
         #   We also measure the time to scale the right singular vectors
@@ -337,7 +341,7 @@ class SPO1(OverLstsqSolver):
         eps = np.finfo(float).eps
         rank = np.count_nonzero(sigma > sigma[0] * n_cols * eps)
         N = Vh[:rank, :].T / sigma[:rank]
-        self.log['time_factor'] = quick_time() - tic
+        log['time_factor'] = quick_time() - tic
 
         if self.smart_init:
             tic = quick_time()
@@ -347,22 +351,22 @@ class SPO1(OverLstsqSolver):
             b_remainder = b - A @ x_ske
             if la.norm(b_remainder, ord=2) >= la.norm(b, ord=2):
                 z_ske = None
-            self.log['time_presolve'] = quick_time() - tic
+            log['time_presolve'] = quick_time() - tic
 
             tic = quick_time()
             res = self.iterative_solver(A, b, None, delta, tol, iter_lim, N, False, z_ske)
             toc = quick_time()
-            self.log['time_iterate'] = toc - tic
+            log['time_iterate'] = toc - tic
             x_star = res[0]
         else:
             # No presolve
-            self.log['time_presolve'] = 0
+            log['time_presolve'] = 0
 
             # Iterative phase
             tic = quick_time()
             res = self.iterative_solver(A, b, None, delta, tol, iter_lim, N, False, None)
             toc = quick_time()
-            self.log['time_iterate'] = toc - tic
+            log['time_iterate'] = toc - tic
             x_star = res[0]
 
         if logging:
@@ -373,13 +377,13 @@ class SPO1(OverLstsqSolver):
             # Amortizing the time taken by a single step of LSQR is reasonable,
             # because convergence behavior can be seen by how the normal
             # equation error decays from one iteration to the next.
-            time_setup = self.log['time_sketch']
-            time_setup += self.log['time_factor']
-            amortized = np.linspace(0, self.log['time_iterate'],
+            time_setup = log['time_sketch']
+            time_setup += log['time_factor']
+            amortized = np.linspace(0, log['time_iterate'],
                                     iters, endpoint=True)
-            cumulative = time_setup + self.log['time_presolve'] + amortized
+            cumulative = time_setup + log['time_presolve'] + amortized
             times = np.concatenate(([time_setup], cumulative))
-            self.log['times'] = times
+            log['times'] = times
 
             arnorms = res[8][:iters]
             # Record a vector of (preconditioned) normal equation errors. Treat
@@ -388,10 +392,9 @@ class SPO1(OverLstsqSolver):
             ar0 = N.T @ (A.T @ b)
             ar0norm = la.norm(ar0)
             arnorms = np.concatenate(([ar0norm], arnorms))
-            self.log['x'] = x_star
-            self.log['arnorms'] = arnorms
+            log['arnorms'] = arnorms
 
-        return x_star
+        return x_star, log
 
 
 class UnderLstsqSolver:
