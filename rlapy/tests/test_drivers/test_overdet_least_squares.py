@@ -186,7 +186,7 @@ class TestOverLstsqSolver(unittest.TestCase):
         ath.tester = self
         for seed in seeds:
             rng = np.random.default_rng(seed)
-            ath.x_approx = ols(ath.A, ath.b, alg_tol, iter_lim, rng)
+            ath.x_approx = ols(ath.A, ath.b, 0.0, alg_tol, iter_lim, rng)
             ath.test_residual_proj(test_tol)
             ath.test_x_angle(test_tol)
             ath.test_x_norm(test_tol)
@@ -198,7 +198,7 @@ class TestOverLstsqSolver(unittest.TestCase):
         ath.tester = self
         for seed in seeds:
             rng = np.random.default_rng(seed)
-            ath.x_approx = ols(ath.A, ath.b, alg_tol, iter_lim, rng)
+            ath.x_approx = ols(ath.A, ath.b, 0.0, alg_tol, iter_lim, rng)
             ath.test_x_norm(test_tol)
             ath.test_x_angle(test_tol)
             ath.test_objective(test_tol)
@@ -225,7 +225,7 @@ class TestOverLstsqSolver(unittest.TestCase):
             x0 = np.random.randn(n_cols)
             b0 = A @ x0
             b = b0 + 0.05 * rng.standard_normal(n_rows)
-            x_approx = sap(A, b, tol=tol, iter_lim=iter_lim, rng=rng)
+            x_approx = sap(A, b, 0.0, tol=tol, iter_lim=iter_lim, rng=rng)
             x_opt = np.linalg.lstsq(A, b, rcond=None)[0]
             error = np.linalg.norm(x_approx - x_opt)
             errors[i] = error
@@ -397,7 +397,7 @@ class TestSAS(unittest.TestCase):
         for sf in sampling_factors:
             sas.sampling_factor = sf
             rng = np.random.default_rng(seed)
-            x_ske = sas(A, b, tol=np.NaN, iter_lim=1, rng=rng)
+            x_ske = sas(A, b, 0.0, tol=np.NaN, iter_lim=1, rng=rng)
             err = la.norm(x_ske - x_star)
             errors.append(err)
         errors = np.array(errors)

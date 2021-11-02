@@ -12,12 +12,12 @@ import time
 
 
 class OverLstsqSolver:
-    """Solver for overdetermined ordinary least-squares."""
+    """Solver for overdetermined least squares problems."""
 
-    def __call__(self, A, b, tol, iter_lim, rng):
+    def __call__(self, A, b, delta, tol, iter_lim, rng):
         """
         Return an approximate solution to
-            min{ ||A x - b||_2 : x in R^n }.
+            min{ ||A x - b||_2^2 + delta * ||x||_2^2 : x in R^n }.
 
         There is no requirement that an implementation is able to control
         the error of its returned solution. Some implementations will produce
@@ -31,6 +31,9 @@ class OverLstsqSolver:
 
         b : ndarray
             Right-hand-side.
+
+        delta : float
+            Regularization parameter. Must be nonnegative.
 
         tol : float
             This parameter is only relevant for implementations that involve
@@ -110,7 +113,7 @@ class SSO1(OverLstsqSolver):
         self.lapack_driver = lapack_driver
         self.overwrite_sketch = overwrite_sketch
 
-    def __call__(self, A, b, tol, iter_lim, rng):
+    def __call__(self, A, b, delta, tol, iter_lim, rng):
         if not np.isnan(tol):
             msg = """
             This OverLstsqSolver implementation cannot directly control
@@ -129,6 +132,9 @@ class SSO1(OverLstsqSolver):
         S = self.sketch_op_gen(d, n_rows, rng)
         A_ske = S @ A
         b_ske = S @ b
+        if delta > 0:
+            A_ske = np.vstack((A_ske, (delta**0.5) * np.eye(n_cols)))
+            b_ske = np.concatenate((b_ske, np.zeros(n_cols)))
         res = la.lstsq(A_ske, b_ske,
                        cond=None, overwrite_a=self.overwrite_sketch,
                        overwrite_b=True, check_finite=False,
@@ -175,7 +181,6 @@ class SPO3(OverLstsqSolver):
     def __init__(self, sketch_op_gen, sampling_factor: int):
         self.sketch_op_gen = sketch_op_gen
         self.sampling_factor = sampling_factor
-        self.raw_res = None
         self.iterative_solver = ris.PcSS2()  # implements LSQR
         # This implementation has the option of logging detailed information
         # on runtime and the rate at which (preconditioned) normal equation
@@ -189,7 +194,7 @@ class SPO3(OverLstsqSolver):
                     'arnorms': np.empty((1,)),
                     'x': np.empty((1,))}
 
-    def __call__(self, A, b, tol, iter_lim, rng, logging=False):
+    def __call__(self, A, b, delta, tol, iter_lim, rng, logging=False):
         n_rows, n_cols = A.shape
         d = dim_checks(self.sampling_factor, n_rows, n_cols)
         if not np.isnan(tol):
@@ -210,13 +215,15 @@ class SPO3(OverLstsqSolver):
 
         # Factor the sketch
         tic = quick_time()
+        if delta > 0:
+            A_ske = np.vstack((A_ske, np.sqrt(delta)*np.eye(n_cols)))
         Q, R = la.qr(A_ske, overwrite_a=True, mode='economic')
         self.log['time_factor'] = quick_time() - tic
 
         # Sketch-and-solve type preprocessing
         tic = quick_time()
         b_ske = S @ b
-        z_ske = Q.T @ b_ske
+        z_ske = Q[:n_rows, :].T @ b_ske
         x_ske = la.solve_triangular(R, z_ske, lower=False)
         if np.linalg.norm(A @ x_ske - b) >= np.linalg.norm(b):
             z_ske = None
@@ -298,7 +305,7 @@ class SPO1(OverLstsqSolver):
                     'arnorms': np.empty((1,)),
                     'x': np.empty((1,))}
 
-    def __call__(self, A, b, tol, iter_lim, rng, logging=False):
+    def __call__(self, A, b, delta, tol, iter_lim, rng, logging=False):
         n_rows, n_cols = A.shape
         d = dim_checks(self.sampling_factor, n_rows, n_cols)
         if not np.isnan(tol):
@@ -322,6 +329,9 @@ class SPO1(OverLstsqSolver):
         #   as needed for the preconditioner. SPO3 doesn't have a
         #   directly comparable cost.
         tic = quick_time()
+        if delta > 0:
+            reg_I = np.sqrt(delta) * np.eye(n_cols)
+            A_ske = np.vstack((A_ske, reg_I))
         U, sigma, Vh = la.svd(A_ske, overwrite_a=True, check_finite=False,
                               full_matrices=False)
         eps = np.finfo(float).eps
@@ -332,7 +342,7 @@ class SPO1(OverLstsqSolver):
         if self.smart_init:
             tic = quick_time()
             b_ske = S @ b
-            z_ske = U[:, :rank].T @ b_ske
+            z_ske = (U[:n_rows, :][:, :rank]).T @ b_ske
             x_ske = N @ z_ske
             b_remainder = b - A @ x_ske
             if la.norm(b_remainder, ord=2) >= la.norm(b, ord=2):
@@ -340,7 +350,7 @@ class SPO1(OverLstsqSolver):
             self.log['time_presolve'] = quick_time() - tic
 
             tic = quick_time()
-            res = self.iterative_solver(A, b, None, 0.0, tol, iter_lim, N, False, z_ske)
+            res = self.iterative_solver(A, b, None, delta, tol, iter_lim, N, False, z_ske)
             toc = quick_time()
             self.log['time_iterate'] = toc - tic
             x_star = res[0]
@@ -350,7 +360,7 @@ class SPO1(OverLstsqSolver):
 
             # Iterative phase
             tic = quick_time()
-            res = self.iterative_solver(A, b, None, 0.0, tol, iter_lim, N, False, None)
+            res = self.iterative_solver(A, b, None, delta, tol, iter_lim, N, False, None)
             toc = quick_time()
             self.log['time_iterate'] = toc - tic
             x_star = res[0]
@@ -382,3 +392,10 @@ class SPO1(OverLstsqSolver):
             self.log['arnorms'] = arnorms
 
         return x_star
+
+
+class UnderLstsqSolver:
+    """Solver for underdetermined least squares problems"""
+
+    def __call__(self, A, c, tol, iter_lim, rng):
+        raise NotImplementedError()
