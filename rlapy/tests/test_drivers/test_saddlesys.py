@@ -31,17 +31,21 @@ def make_simple_prob(m, n, spectrum, delta, rng):
     # solve for x_opt, y_opt
     gram = A.T @ A + delta * np.eye(n)
     rhs = A.T @ b - c
-    x_opt = la.solve(gram, rhs, sym_pos=True)
+    try:
+        x_opt = la.solve(gram, rhs, sym_pos=True)
+    except la.LinAlgError:
+        x_opt = la.lstsq(gram, rhs)[0]
+
     y_opt = b - A @ x_opt
 
     # Return
-    ath = AlgTestHelper(A, b, c, delta, x_opt, y_opt)
+    ath = AlgTestHelper(A, spectrum, b, c, delta, x_opt, y_opt)
     return ath
 
 
 class AlgTestHelper:
 
-    def __init__(self, A, b, c, delta, x_opt, y_opt):
+    def __init__(self, A, spec, b, c, delta, x_opt, y_opt):
         """
         (x_opt, y_opt) solve ...
 
@@ -56,6 +60,7 @@ class AlgTestHelper:
         self.A = A
         self.b = b
         self.c = c
+        self.spec = spec  # singular values
         self.delta = delta
         self.x_opt = x_opt
         self.y_opt = y_opt
@@ -97,6 +102,7 @@ class AlgTestHelper:
         lhs += self.delta * self.x_approx
         gap = rhs - lhs
         nrm = la.norm(gap, ord=2)
+        nrm /= np.max(self.spec)
         self.tester.assertLessEqual(nrm, tol)
 
     def test_block_residual(self, tol):
@@ -129,17 +135,22 @@ class TestSaddleSolver(unittest.TestCase):
 
 
 class TestSPS2(TestSaddleSolver):
-
-    def test_simple(self):
+    
+    @staticmethod
+    def default_config():
         alg = SPS2(
             sketch_op_gen=oblivious.SkOpSJ(),
             sampling_factor=3,
             iterative_solver=itersad.PcSS2()
         )
+        return alg
+
+    def test_linspace_spec(self):
+        alg = TestSPS2.default_config()
         rng = np.random.default_rng(0)
-        m, n = 1000, 100
-        kappa = 1e5
-        spectrum = np.linspace(kappa ** 0.5, kappa ** -0.5, num=n)
+
+        m, n, cond_num = 1000, 100, 1e5
+        spectrum = np.linspace(cond_num ** 0.5, cond_num ** -0.5, num=n)
 
         delta = 0.0
         ath = make_simple_prob(m, n, spectrum, delta, rng)
@@ -148,3 +159,29 @@ class TestSPS2(TestSaddleSolver):
         delta = 1.0
         ath = make_simple_prob(m, n, spectrum, delta, rng)
         self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
+
+    def test_logspace_spec(self):
+        alg = TestSPS2.default_config()
+        rng = np.random.default_rng(0)
+
+        m, n, cond_num = 1000, 100, 1e5
+        spec = np.logspace(np.log10(cond_num)/2, -np.log10(cond_num)/2, num=n)
+
+        ath = make_simple_prob(m, n, spec, 0.0, rng)
+        self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
+
+        ath = make_simple_prob(m, n, spec, 1.0, rng)
+        self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
+    
+    def test_higher_accuracy(self):
+        alg = TestSPS2.default_config()
+        rng = np.random.default_rng(0)
+
+        m, n, cond_num = 500, 50, 1e3
+        spectrum = np.linspace(cond_num ** 0.5, cond_num ** -0.5, num=n)
+
+        ath = make_simple_prob(m, n, spectrum, 0.0, rng)
+        self.run_ath(ath, alg, 0.0, n, 1e-8, self.SEEDS)
+
+        ath = make_simple_prob(m, n, spectrum, 1.0, rng)
+        self.run_ath(ath, alg, 0.0, n, 1e-8, self.SEEDS)
