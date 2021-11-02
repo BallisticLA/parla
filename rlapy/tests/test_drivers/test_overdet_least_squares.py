@@ -187,6 +187,7 @@ class AlgTestHelper:
 
 
 class TestOverLstsqSolver(unittest.TestCase):
+    # TODO: add tests that check logging
 
     SEEDS = [1, 4, 15, 31, 42]
 

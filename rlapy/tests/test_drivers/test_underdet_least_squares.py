@@ -104,6 +104,7 @@ class TestUnderLstsqSolver(unittest.TestCase):
 
 
 class TestSPU1(TestUnderLstsqSolver):
+    # TODO: add tests that check logging
 
     @staticmethod
     def default_config():

@@ -1,4 +1,4 @@
-from scipy.linalg import solve_triangular
+import scipy.linalg as la
 import scipy.sparse.linalg as sparla
 import numpy as np
 
@@ -12,6 +12,11 @@ def a_lift(A, scale):
         # However, it's faster than the LinearOperator approach I tried.
         return A
 
+#TODO: consolidate the r and M cases below.
+#   use a flag for upper-triangular.
+
+#TODO: rename functions here ("times" and "inv_r" and "m" is a mess).
+
 
 def a_times_inv_r(A, delta, R, k=1):
     """Return a linear operator that represents [A; sqrt(delta)*I] @ inv(R)
@@ -24,8 +29,8 @@ def a_times_inv_r(A, delta, R, k=1):
 
     def forward(arg, work):
         np.copyto(work, arg)
-        work = solve_triangular(R, work, lower=False, check_finite=False,
-                                overwrite_b=True)
+        work = la.solve_triangular(R, work, lower=False, check_finite=False,
+                                   overwrite_b=True)
         out = A_lift @ work
         return out
 
@@ -33,7 +38,7 @@ def a_times_inv_r(A, delta, R, k=1):
         np.dot(A.T, arg, out=work)
         if delta > 0:
             work += sqrt_delta * arg
-        out = solve_triangular(R, work, 'T', lower=False, check_finite=False)
+        out = la.solve_triangular(R, work, 'T', lower=False, check_finite=False)
         return out
 
     vec_work = np.zeros(A.shape[1])
@@ -44,7 +49,11 @@ def a_times_inv_r(A, delta, R, k=1):
 
     A_precond = sparla.LinearOperator(shape=A.shape,
                                       matvec=mv, rmatvec=rmv)
-    return A_precond
+
+    M_fwd = lambda z: la.solve_triangular(R, z, lower=False)
+    M_adj = lambda w: la.solve_triangular(R, w, 'T', lower=False)
+
+    return A_precond, M_fwd, M_adj
 
 
 def a_times_m(A, delta, M, k=1):
@@ -73,24 +82,59 @@ def a_times_m(A, delta, M, k=1):
 
     A_precond = sparla.LinearOperator(shape=(A.shape[0], M.shape[1]),
                                       matvec=mv, rmatvec=rmv)
-    return A_precond
+
+    M_fwd = lambda z: M @ z
+    M_adj = lambda w: M.T @ w
+
+    return A_precond, M_fwd, M_adj
 
 
-def lr_precond_gram(A, R):
+def lr_invr_precond_gram(A, delta, R, k=1):
     """Return a linear operator that represents (A @ inv(R)).T @ (A @ inv(R))"""
-    #TODO: provide matmat and rmatmat implementations
+    if k != 1:
+        raise NotImplementedError()
+    
     work1 = np.zeros(A.shape[1])
     work2 = np.zeros(A.shape[0])
 
     def mv(vec):
         np.copyto(work1, vec)
-        work1 = solve_triangular(R, work1, lower=False, check_finite=False,
-                                 overwrite_b=True)
+        work1 = la.solve_triangular(R, work1, lower=False, check_finite=False,
+                                    overwrite_b=True)
         np.dot(A, work1, out=work2)
         np.dot(A.T, work2, out=work1)
-        res = solve_triangular(R, work1, 'T', lower=False, check_finite=False)
+        res = la.solve_triangular(R, work1, 'T', lower=False, check_finite=False)
+        res += delta*vec
         return res
 
     AtA_precond = sparla.LinearOperator(shape=(A.shape[1], A.shape[1]),
                                         matvec=mv, rmatvec=mv)
-    return AtA_precond
+    
+    M_fwd = lambda z: la.solve_triangular(R, z, lower=False)
+    M_adj = lambda w: la.solve_triangular(R, w, 'T', lower=False)
+    
+    return AtA_precond, M_fwd, M_adj
+
+
+def lr_m_precond_gram(A, delta, M, k=1):
+    """Return a linear operator that represents (A @ M).T @ (A @ M)"""
+    if k != 1:
+        raise NotImplementedError()
+    
+    work1 = np.zeros(A.shape[1])
+    work2 = np.zeros(A.shape[0])
+
+    def mv(vec):
+        np.dot(M, vec, out=work1)
+        np.dot(A, work1, out=work2)
+        np.dot(A.T, work2, out=work1)
+        res = M.T @ work1
+        res += delta*vec
+        return res
+
+    AtA_precond = sparla.LinearOperator(shape=(A.shape[1], A.shape[1]),
+                                        matvec=mv, rmatvec=mv)
+    M_fwd = lambda z: M @ z
+    M_adj = lambda w: M.T @ w
+
+    return AtA_precond, M_fwd, M_adj

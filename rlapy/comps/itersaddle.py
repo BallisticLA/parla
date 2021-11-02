@@ -3,7 +3,8 @@ import scipy.linalg as la
 from scipy.sparse import linalg as sparla
 
 from rlapy.comps.lsqr import lsqr
-from rlapy.comps.preconditioning import a_times_inv_r, lr_precond_gram, a_times_m
+from rlapy.comps.preconditioning import a_times_inv_r, lr_m_precond_gram, a_times_m, \
+    lr_invr_precond_gram
 
 
 class PrecondSaddleSolver:
@@ -40,6 +41,33 @@ class PrecondSaddleSolver:
         raise NotImplementedError()
 
 
+class PcSS1(PrecondSaddleSolver):
+
+    def __call__(self, A, b, c, delta, tol, iter_lim, R, upper_tri, z0):
+        k = 1 if (b is None or b.ndim == 1) else b.shape[1]
+
+        if upper_tri:
+            AtA_pc, M_fwd, M_adj = lr_invr_precond_gram(A, delta, R, k)
+        else:
+            AtA_pc, M_fwd, M_adj = lr_m_precond_gram(A, delta, R, k)
+
+        if b is None:
+            b = np.zeros(A.shape[0])
+
+        if c is not None:
+            rhs = M_adj(A.T @ b + c)
+        else:
+            rhs = M_adj(A.T @ b)
+        result = sparla.cg(AtA_pc, rhs, atol=tol, tol=tol, maxiter=iter_lim, x0=z0)
+
+        x_star = M_fwd(result[0])
+        y_star = b - A @ x_star
+
+        result = (x_star, y_star) + result[2:]
+
+        return result
+
+
 class PcSS2(PrecondSaddleSolver):
 
     def __call__(self, A, b, c, delta, tol, iter_lim, R, upper_tri, z0):
@@ -47,13 +75,9 @@ class PcSS2(PrecondSaddleSolver):
         k = 1 if (b is None or b.ndim == 1) else b.shape[1]
 
         if upper_tri:
-            A_pc = a_times_inv_r(A, delta, R, k)
-            M_fwd = lambda z: la.solve_triangular(R, z, lower=False)
-            M_adj = lambda w: la.solve_triangular(R, w, 'T', lower=False)
+            A_pc, M_fwd, M_adj = a_times_inv_r(A, delta, R, k)
         else:
-            A_pc = a_times_m(A, delta, R, k)
-            M_fwd = lambda z: R @ z
-            M_adj = lambda w: R.T @ w
+            A_pc, M_fwd, M_adj = a_times_m(A, delta, R, k)
 
         if c is None or la.norm(c) == 0:
             # Overdetermined least squares
@@ -80,48 +104,3 @@ class PcSS2(PrecondSaddleSolver):
 
         else:
             raise ValueError('One of "b" or "c" must be zero.')
-
-
-#TODO: make me into PcSS1
-def upper_tri_precond_cg(A, b, R, tol, iter_lim, x0=None):
-    """
-    Run conjugate gradients on the positive semidefinite linear system
-        ((A R^-1)' (A R^-1)) y == (R^-1)' b
-    and set x = R^-1 y, as a means to solve the linear system
-        (A' A) x = b.
-
-    Parameters
-    ----------
-    A : np.ndarray
-        Tall data matrix.
-    b : np.ndarray
-        right-hand-side. b.size == A.shape[0].
-    R : np.ndarray
-        Nonsingular upper-triangular preconditioner.
-        The condition number of (A R^-1) should be near one.
-    tol : float
-        Stopping criteria for ScPy's cg implementation.
-        Considered with respect to the preconditioned system.
-    iter_lim : int
-        Stopping criteria for SciPy's cg implementation
-    x0 : Union[None, np.ndarray]
-        If provided, use as an initial solution to (A' A) x = b.
-
-    Returns
-    -------
-    The same values as SciPy's cg implementation.
-    """
-    #TODO: write tests
-    AtA_precond = lr_precond_gram(A, R)
-    b_precond = la.solve_triangular(R, b, 'T', lower=False, check_finite=False)
-    if x0 is not None:
-        y0 = (R @ x0).ravel()
-        result = sparla.cg(AtA_precond, b_precond, atol=tol, btol=tol,
-                           iter_lim=iter_lim, x0=y0)
-    else:
-        result = sparla.cg(AtA_precond, b_precond, atol=tol, btol=tol,
-                           iter_lim=iter_lim)
-    z = result[0]
-    z = la.solve_triangular(R, z, lower=False, overwrite_b=True)
-    result = (z,) + result[1:]
-    return result

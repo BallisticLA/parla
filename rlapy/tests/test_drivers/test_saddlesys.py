@@ -135,6 +135,8 @@ class TestSaddleSolver(unittest.TestCase):
 
 
 class TestSPS2(TestSaddleSolver):
+    #TODO: split use of PcSS1 off to a new SPS1 class.
+    #TODO: add tests that check logging
     
     @staticmethod
     def default_config():
@@ -147,6 +149,11 @@ class TestSPS2(TestSaddleSolver):
 
     def test_linspace_spec(self):
         alg = TestSPS2.default_config()
+        self._test_linspace_spec(alg)
+        alg.iterative_solver = itersad.PcSS1()
+        self._test_linspace_spec(alg)
+
+    def _test_linspace_spec(self, alg):
         rng = np.random.default_rng(0)
 
         m, n, cond_num = 1000, 100, 1e5
@@ -162,6 +169,11 @@ class TestSPS2(TestSaddleSolver):
 
     def test_logspace_spec(self):
         alg = TestSPS2.default_config()
+        self._test_logspace_spec(alg)
+        alg.iterative_solver = itersad.PcSS1()
+        self._test_logspace_spec(alg)
+
+    def _test_logspace_spec(self, alg):
         rng = np.random.default_rng(0)
 
         m, n, cond_num = 1000, 100, 1e5
@@ -172,9 +184,14 @@ class TestSPS2(TestSaddleSolver):
 
         ath = make_simple_prob(m, n, spec, 1.0, rng)
         self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
-    
+
     def test_higher_accuracy(self):
         alg = TestSPS2.default_config()
+        self._test_higher_accuracy(alg)
+        alg.iterative_solver = itersad.PcSS1()
+        self._test_higher_accuracy(alg)
+
+    def _test_higher_accuracy(self, alg):
         rng = np.random.default_rng(0)
 
         m, n, cond_num = 500, 50, 1e3
