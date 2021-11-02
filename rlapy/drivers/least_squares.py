@@ -11,6 +11,10 @@ import rlapy.comps.itersaddle as ris
 import time
 
 
+#TODO: pull out common blocks of code into helper functions
+#   -- push more preamble code into expanded version of "dim_checks"
+#   Only do this once we're ready for the same change on the Matlab side.
+
 class OverLstsqSolver:
     """Solver for overdetermined least squares problems."""
 
@@ -401,6 +405,7 @@ class UnderLstsqSolver:
     """Solver for underdetermined least squares problems"""
 
     def __call__(self, A, c, tol, iter_lim, rng, logging=False):
+        """TODO: write docstring"""
         raise NotImplementedError()
 
 
@@ -412,6 +417,8 @@ class SPU1(UnderLstsqSolver):
         s.t. A' y = c
 
     where A is tall.
+
+    #TODO: write proper docstring
     """
 
     def __init__(self, sketch_op_gen, sampling_factor: int):
@@ -420,6 +427,7 @@ class SPU1(UnderLstsqSolver):
         self.iterative_solver = ris.PcSS2()  # implements LSQR
 
     def __call__(self, A, c, tol, iter_lim, rng, logging=False):
+        """TODO: write docstring"""
         n_rows, n_cols = A.shape
         d = dim_checks(self.sampling_factor, n_rows, n_cols)
         if not np.isnan(tol):

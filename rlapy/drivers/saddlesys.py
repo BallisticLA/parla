@@ -21,15 +21,6 @@ class SPS2(SaddleSolver):
         self.sketch_op_gen = sketch_op_gen
         self.sampling_factor = sampling_factor
         self.iterative_solver = iterative_solver
-        log = {'time_sketch': -1.0,
-                    'time_factor': -1.0,
-                    'time_convert': -1.0,
-                    'time_presolve': -1.0,
-                    'time_iterate': -1.0,
-                    'times': np.empty((1,)),
-                    'arnorms': np.empty((1,)),
-                    'x': np.empty((1,)),
-                    'y': np.empty((1,))}
         pass
 
     def __call__(self, A, b, c, delta, tol, iter_lim, rng, logging=False):

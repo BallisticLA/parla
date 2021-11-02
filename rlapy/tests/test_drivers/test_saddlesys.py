@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import scipy.linalg as la
-import rlapy.drivers.saddlesys as rsad
+from rlapy.drivers.saddlesys import SPS2, SaddleSolver
 import rlapy.comps.itersaddle as itersad
 import rlapy.utils.sketching as usk
 import rlapy.comps.sketchers.oblivious as oblivious
@@ -61,7 +61,18 @@ class AlgTestHelper:
         self.y_opt = y_opt
         self.x_approx = None
         self.y_approx = None
+        self._result = None
         self.tester = unittest.TestCase()
+
+    @property
+    def result(self):
+        return self._result
+
+    @result.setter
+    def result(self, value):
+        self._result = value
+        self.x_approx = value[0]
+        self.y_approx = value[1]
 
     def test_delta_xy(self, tol):
         """
@@ -100,11 +111,27 @@ class AlgTestHelper:
         self.tester.assertLessEqual(nrm, tol)
 
 
-class TestSPS2(unittest.TestCase):
-    #TODO: make a base class and have this superclass it
+class TestSaddleSolver(unittest.TestCase):
+
+    SEEDS = [1, 4, 15, 31, 42]
+
+    def run_ath(self, ath: AlgTestHelper,
+                      alg: SaddleSolver,
+                      alg_tol, iter_lim,
+                      test_tol, seeds):
+        ath.tester = self
+        for seed in seeds:
+            rng = np.random.default_rng(seed)
+            ath.result = alg(ath.A, ath.b, ath.c, ath.delta, alg_tol, iter_lim, rng)
+            ath.test_normal_eq_residual(test_tol)
+            ath.test_block_residual(test_tol)
+            ath.test_delta_xy(test_tol)
+
+
+class TestSPS2(TestSaddleSolver):
 
     def test_simple(self):
-        alg = rsad.SPS2(
+        alg = SPS2(
             sketch_op_gen=oblivious.SkOpSJ(),
             sampling_factor=3,
             iterative_solver=itersad.PcSS2()
@@ -116,22 +143,8 @@ class TestSPS2(unittest.TestCase):
 
         delta = 0.0
         ath = make_simple_prob(m, n, spectrum, delta, rng)
-        x, y, log = alg(ath.A, ath.b, ath.c, ath.delta,
-                        tol=1e-12, iter_lim=50,
-                        rng=rng, logging=False)
-        ath.x_approx = x
-        ath.y_approx = y
-        ath.test_normal_eq_residual(tol=1e-6)
-        ath.test_block_residual(tol=1e-6)
-        ath.test_delta_xy(tol=1e-6)
+        self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
 
         delta = 1.0
         ath = make_simple_prob(m, n, spectrum, delta, rng)
-        x, y, log = alg(ath.A, ath.b, ath.c, ath.delta,
-                        tol=1e-12, iter_lim=50,
-                        rng=rng, logging=False)
-        ath.x_approx = x
-        ath.y_approx = y
-        ath.test_normal_eq_residual(tol=1e-6)
-        ath.test_block_residual(tol=1e-6)
-        ath.test_delta_xy(tol=1e-6)
+        self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)

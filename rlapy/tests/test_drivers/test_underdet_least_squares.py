@@ -9,23 +9,13 @@ import rlapy.comps.sketchers.oblivious as oblivious
 def make_simple_prob(m, n, spectrum, rng):
     rng = np.random.default_rng(rng)
 
-    # Construct the data matrix
     rank = spectrum.size
     U = usk.orthonormal_operator(m, rank, rng)
     Vt = usk.orthonormal_operator(rank, n, rng)
     A = (U * spectrum) @ Vt
 
-    # Make c
     c = rng.standard_normal(n)
-
-    # solve for x_opt, y_opt
     y_opt = la.lstsq(A.T, c, check_finite=False)[0]
-    #gram = A.T @ A
-    #rhs = - c
-    #x_opt = la.solve(gram, rhs, sym_pos=True)
-    #y_opt = - A @ x_opt
-
-    # Return
     ath = AlgTestHelper(A, c, y_opt)
     return ath
 
@@ -100,6 +90,7 @@ class TestUnderLstsqSolver(unittest.TestCase):
 
 class TestSPU1(TestUnderLstsqSolver):
 
+    #TODO: more tests
     def test_simple(self):
         alg = SPU1(oblivious.SkOpSJ(), sampling_factor=3)
 

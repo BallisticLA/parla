@@ -82,6 +82,7 @@ class PcSS2(PrecondSaddleSolver):
             raise ValueError('One of "b" or "c" must be zero.')
 
 
+#TODO: make me into PcSS1
 def upper_tri_precond_cg(A, b, R, tol, iter_lim, x0=None):
     """
     Run conjugate gradients on the positive semidefinite linear system
