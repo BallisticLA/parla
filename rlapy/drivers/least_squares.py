@@ -160,122 +160,6 @@ class SSO1(OverLstsqSolver):
         return x_ske, log
 
 
-class SPO3(OverLstsqSolver):
-    """A sketch-and-precondition approach to overdetermined ordinary least
-    squares. This implementation uses QR to obtain the preconditioner and
-    it uses LSQR for the iterative method.
-
-    Before starting LSQR, we run a basic sketch-and-solve (for free, given
-    our QR decomposition of the sketched data matrix) to obtain a solution
-    x_ske. If ||A x_ske - b||_2 < ||b||_2, then we initialize LSQR at x_ske.
-
-    This implementation assumes A is full rank.
-
-    References
-    ----------
-    This implementation was inspired by Blendenpik (AMT:2010). The differences
-    relative to the official Blendenpik algorithm [AMT:2010, Algorithm 1] are
-
-        (1) We make no assumption on the distribution of the sketching matrix
-            which is used to form the preconditioner. Blendenpik only used
-            SRTTs (Walsh-Hadamard, discrete cosine, discrete Hartley).
-
-        (2) We let the user specify the exact embedding dimension, as
-            floor(self.oversampling_factor * A.shape[1]).
-
-        (3) We do not zero-pad A with additional rows. Such zero padding
-            might be desirable to facilitate rapid application of SRTT
-            sketching operators. It is possible to implement an SRTT operator
-            so that it performs zero-padding internally.
-
-        (4) We do not perform any checks on the quality of the preconditioner.
-
-        (5) We initialize the iterative solver (LSQR) at the better of the two
-            solutions given by either the zero vector or the output of
-            sketch-and-solve.
-    """
-
-    def __init__(self, sketch_op_gen, sampling_factor: int):
-        self.sketch_op_gen = sketch_op_gen
-        self.sampling_factor = sampling_factor
-        self.iterative_solver = ris.PcSS2()  # implements LSQR
-
-    def __call__(self, A, b, delta, tol, iter_lim, rng, logging=False):
-        n_rows, n_cols = A.shape
-        d = dim_checks(self.sampling_factor, n_rows, n_cols)
-        if not np.isnan(tol):
-            assert tol >= 0
-            assert tol < np.inf
-        rng = np.random.default_rng(rng)
-
-        log = {'time_sketch': -1.0,
-               'time_factor': -1.0,
-               'time_presolve': -1.0,
-               'time_iterate': -1.0,
-               'times': np.empty((1,)),
-               'arnorms': np.empty((1,))}
-
-        if logging:
-            quick_time = time.time
-        else:
-            quick_time = lambda: 0.0
-
-        # Sketch the data matrix
-        tic = quick_time()
-        S = self.sketch_op_gen(d, n_rows, rng)
-        A_ske = S @ A
-        log['time_sketch'] = quick_time() - tic
-
-        # Factor the sketch
-        tic = quick_time()
-        if delta > 0:
-            A_ske = np.vstack((A_ske, np.sqrt(delta)*np.eye(n_cols)))
-        Q, R = la.qr(A_ske, overwrite_a=True, mode='economic')
-        log['time_factor'] = quick_time() - tic
-
-        # Sketch-and-solve type preprocessing
-        tic = quick_time()
-        b_ske = S @ b
-        z_ske = Q[:n_rows, :].T @ b_ske
-        x_ske = la.solve_triangular(R, z_ske, lower=False)
-        if np.linalg.norm(A @ x_ske - b) >= np.linalg.norm(b):
-            z_ske = None
-        log['time_presolve'] = quick_time() - tic
-
-        # Iterative phase
-        tic = quick_time()
-        res = self.iterative_solver(A, b, None, 0.0, tol, iter_lim, R, True, z_ske)
-        log['time_iterate'] = quick_time() - tic
-
-        if logging:
-            iters = res[3]
-            # Record a vector of cumulative times to (1) sketch and factor, and
-            # (2) take an individual step in LSQR (amortized!).
-            #
-            # Amortizing the time taken by a single step of LSQR is reasonable,
-            # because convergence behavior can be seen by how the normal
-            # equation error decays from one iteration to the next.
-            time_setup = log['time_sketch']
-            time_setup += log['time_factor']
-            amortized = np.linspace(0, log['time_iterate'],
-                                    iters, endpoint=True)
-            cumulative = time_setup + log['time_presolve'] + amortized
-            times = np.concatenate(([time_setup], cumulative))
-            log['times'] = times
-
-            arnorms = res[8][:iters]
-            # Record a vector of (preconditioned) normal equation errors. Treat
-            # the zero vector as a theoretically valid initialization point which
-            # we would use before the "solve" phase of "sketch-and-solve".
-            ar0 = A.T @ b
-            ar0 = la.solve_triangular(R, ar0, 'T', lower=False, overwrite_b=True)
-            ar0norm = la.norm(ar0)
-            arnorms = np.concatenate(([ar0norm], arnorms))
-            log['arnorms'] = arnorms
-
-        return res[0], log
-
-
 class SPO1(OverLstsqSolver):
     """A sketch-and-precondition approach to overdetermined ordinary least
     squares. This implementation uses the SVD to obtain the preconditioner
@@ -399,6 +283,122 @@ class SPO1(OverLstsqSolver):
             log['arnorms'] = arnorms
 
         return x_star, log
+
+
+class SPO3(OverLstsqSolver):
+    """A sketch-and-precondition approach to overdetermined ordinary least
+    squares. This implementation uses QR to obtain the preconditioner and
+    it uses LSQR for the iterative method.
+
+    Before starting LSQR, we run a basic sketch-and-solve (for free, given
+    our QR decomposition of the sketched data matrix) to obtain a solution
+    x_ske. If ||A x_ske - b||_2 < ||b||_2, then we initialize LSQR at x_ske.
+
+    This implementation assumes A is full rank.
+
+    References
+    ----------
+    This implementation was inspired by Blendenpik (AMT:2010). The differences
+    relative to the official Blendenpik algorithm [AMT:2010, Algorithm 1] are
+
+        (1) We make no assumption on the distribution of the sketching matrix
+            which is used to form the preconditioner. Blendenpik only used
+            SRTTs (Walsh-Hadamard, discrete cosine, discrete Hartley).
+
+        (2) We let the user specify the exact embedding dimension, as
+            floor(self.oversampling_factor * A.shape[1]).
+
+        (3) We do not zero-pad A with additional rows. Such zero padding
+            might be desirable to facilitate rapid application of SRTT
+            sketching operators. It is possible to implement an SRTT operator
+            so that it performs zero-padding internally.
+
+        (4) We do not perform any checks on the quality of the preconditioner.
+
+        (5) We initialize the iterative solver (LSQR) at the better of the two
+            solutions given by either the zero vector or the output of
+            sketch-and-solve.
+    """
+
+    def __init__(self, sketch_op_gen, sampling_factor: int):
+        self.sketch_op_gen = sketch_op_gen
+        self.sampling_factor = sampling_factor
+        self.iterative_solver = ris.PcSS2()  # implements LSQR
+
+    def __call__(self, A, b, delta, tol, iter_lim, rng, logging=False):
+        n_rows, n_cols = A.shape
+        d = dim_checks(self.sampling_factor, n_rows, n_cols)
+        if not np.isnan(tol):
+            assert tol >= 0
+            assert tol < np.inf
+        rng = np.random.default_rng(rng)
+
+        log = {'time_sketch': -1.0,
+               'time_factor': -1.0,
+               'time_presolve': -1.0,
+               'time_iterate': -1.0,
+               'times': np.empty((1,)),
+               'arnorms': np.empty((1,))}
+
+        if logging:
+            quick_time = time.time
+        else:
+            quick_time = lambda: 0.0
+
+        # Sketch the data matrix
+        tic = quick_time()
+        S = self.sketch_op_gen(d, n_rows, rng)
+        A_ske = S @ A
+        log['time_sketch'] = quick_time() - tic
+
+        # Factor the sketch
+        tic = quick_time()
+        if delta > 0:
+            A_ske = np.vstack((A_ske, np.sqrt(delta)*np.eye(n_cols)))
+        Q, R = la.qr(A_ske, overwrite_a=True, mode='economic')
+        log['time_factor'] = quick_time() - tic
+
+        # Sketch-and-solve type preprocessing
+        tic = quick_time()
+        b_ske = S @ b
+        z_ske = Q[:n_rows, :].T @ b_ske
+        x_ske = la.solve_triangular(R, z_ske, lower=False)
+        if np.linalg.norm(A @ x_ske - b) >= np.linalg.norm(b):
+            z_ske = None
+        log['time_presolve'] = quick_time() - tic
+
+        # Iterative phase
+        tic = quick_time()
+        res = self.iterative_solver(A, b, None, 0.0, tol, iter_lim, R, True, z_ske)
+        log['time_iterate'] = quick_time() - tic
+
+        if logging:
+            iters = res[3]
+            # Record a vector of cumulative times to (1) sketch and factor, and
+            # (2) take an individual step in LSQR (amortized!).
+            #
+            # Amortizing the time taken by a single step of LSQR is reasonable,
+            # because convergence behavior can be seen by how the normal
+            # equation error decays from one iteration to the next.
+            time_setup = log['time_sketch']
+            time_setup += log['time_factor']
+            amortized = np.linspace(0, log['time_iterate'],
+                                    iters, endpoint=True)
+            cumulative = time_setup + log['time_presolve'] + amortized
+            times = np.concatenate(([time_setup], cumulative))
+            log['times'] = times
+
+            arnorms = res[8][:iters]
+            # Record a vector of (preconditioned) normal equation errors. Treat
+            # the zero vector as a theoretically valid initialization point which
+            # we would use before the "solve" phase of "sketch-and-solve".
+            ar0 = A.T @ b
+            ar0 = la.solve_triangular(R, ar0, 'T', lower=False, overwrite_b=True)
+            ar0norm = la.norm(ar0)
+            arnorms = np.concatenate(([ar0norm], arnorms))
+            log['arnorms'] = arnorms
+
+        return res[0], log
 
 
 class UnderLstsqSolver:
