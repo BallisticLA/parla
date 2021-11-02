@@ -9,8 +9,6 @@ import rlapy.utils.linalg_wrappers as ulaw
 import rlapy.tests.matmakers as matmakers
 
 
-#TODO: create tests which compare approximation quality against
-#   the output of this function
 def reference_osid(A, k, axis):
     M, P = qrcp_osid(A, k, axis)
     if axis == 0:
@@ -36,8 +34,16 @@ def run_osid_test(alg, m, n, rank, k, over, axis, test_tol, seed):
         assert delta_norm < 1e-8
     else:
         raise ValueError()
-    err = la.norm(A - A_id, ord='fro') / la.norm(A, ord='fro')
-    assert err < test_tol
+    err_rand = la.norm(A - A_id, ord='fro')
+    if test_tol < 1e-8:
+        rel_err = err_rand / la.norm(A, ord='fro')
+        assert rel_err < test_tol
+    else:
+        A_id_ref, _, _ = reference_osid(A, k, axis)
+        err_ref = la.norm(A - A_id_ref, ord='fro')
+        rel_err = (err_rand - err_ref) / la.norm(A, ord='fro')
+        print(rel_err)
+    assert rel_err < test_tol
 
 
 class TestOSIDs(unittest.TestCase):
@@ -72,8 +78,10 @@ class TestOSIDs(unittest.TestCase):
         for alg in [OSID1(rso), OSID2(rso)]:
             m, n = 100, 30
             run_osid_test(alg, m, n, rank=30, k=27, over=3, axis=0, test_tol=0.05, seed=0)
-            run_osid_test(alg, m, n, rank=30, k=25, over=4, axis=0, test_tol=0.3, seed=0)
+            run_osid_test(alg, m, n, rank=30, k=25, over=4, axis=0, test_tol=0.05, seed=0)
+            run_osid_test(alg, m, n, rank=30, k=5, over=5, axis=0, test_tol=0.1, seed=0)
             # Re-run tests with wide data matrices
             m, n = 30, 100
             run_osid_test(alg, m, n, rank=30, k=27, over=3, axis=1, test_tol=0.05, seed=0)
-            run_osid_test(alg, m, n, rank=30, k=25, over=4, axis=1, test_tol=0.3, seed=0)
+            run_osid_test(alg, m, n, rank=30, k=25, over=4, axis=1, test_tol=0.05, seed=0)
+            run_osid_test(alg, m, n, rank=30, k=5, over=5, axis=0, test_tol=0.1, seed=0)
