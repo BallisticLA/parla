@@ -14,13 +14,22 @@ class OneSidedID:
         Run a rank-k RowID (axis=0) or ColumnID (axis=1) on A,
         using oversampling parameter over.
 
-        A RowID consists of a matrix "X" and a length-k index vector "Is" so
-        that A \approx X @ A[Is,:]. The rows of X must contain a
-        possibly-permuted k-by-k identity matrix.
+        A RowID consists of a matrix "Z" and a length-k index vector "Is" so
+        that A \approx Z @ A[Is,:]. The rows of Z must contain a
+        possibly-permuted k-by-k identity matrix, such that
 
-        A ColumnID consists of a matrix "Z" and a length-k index vector "Js" so
-        that A \approx A[:,Js] @ Z. The columns of Z must contain a
-        possibly-permuted k-by-k identity matrix.
+            A[Is, :] = (Z @ A[Is, :])[Is,:].
+
+        Note that if we assume the rows of A[Is, :] are linearly independent, then
+        the above equations are equivalent to Z[Is, :] being a k-by-k identity matrix.
+
+        A ColumnID consists of a matrix "X" and a length-k index vector "Js" so
+        that A \approx A[:,Js] @ X. The columns of X must contain a
+        possibly-permuted k-by-k identity matrix, such that
+
+            A[:, Js] = (A[:,Js] @ X)[:, Js].
+
+        As with row ID, this means X[:, Js] is a k-by-k identity matrix
         """
         raise NotImplementedError()
 
