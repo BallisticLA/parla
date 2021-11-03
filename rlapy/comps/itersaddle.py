@@ -110,7 +110,7 @@ class PcSS2(PrecondSaddleSolver):
             result = lsqr(A_pc, b, atol=tol, btol=tol, iter_lim=iter_lim, x0=z0)
             x = M_fwd(result[0])
             y = b[:m] - A @ x
-            result = (x, y) + result[1:]
+            result = (x, y, result[7])
             return result
 
         elif b is None or la.norm(b) == 0:
@@ -123,7 +123,7 @@ class PcSS2(PrecondSaddleSolver):
                 x = (A.T @ y - c) / delta
             else:
                 x = np.NaN * np.empty(n)
-            result = (x, y) + result[1:]
+            result = (x, y, result[7])
             return result
 
         else:

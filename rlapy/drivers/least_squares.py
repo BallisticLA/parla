@@ -8,7 +8,8 @@ import scipy.linalg as la
 import numpy as np
 import rlapy.comps.preconditioning as rpc
 import rlapy.comps.itersaddle as ris
-import time
+from rlapy.utils.timing import fast_timer
+from rlapy.comps.determiter.logging import SketchAndPrecondLog
 
 
 #TODO: pull out common blocks of code into helper functions
@@ -135,10 +136,7 @@ class SSO1(OverLstsqSolver):
             'time_solve': -1.0,
         }
 
-        if logging:
-            quick_time = time.time
-        else:
-            quick_time = lambda: 0.0
+        quick_time = fast_timer(not logging)
 
         tic = quick_time()
         S = self.sketch_op_gen(d, n_rows, rng)
@@ -193,98 +191,66 @@ class SPO1(OverLstsqSolver):
     def __call__(self, A, b, delta, tol, iter_lim, rng, logging=False):
         #TODO: add tests for delta > 0
         n_rows, n_cols = A.shape
+        sqrt_delta = np.sqrt(delta)
         d = dim_checks(self.sampling_factor, n_rows, n_cols)
-        if not np.isnan(tol):
-            assert tol >= 0
-            assert tol < np.inf
         rng = np.random.default_rng(rng)
 
-        log = {'time_sketch': -1.0,
-               'time_factor': -1.0,
-               'time_presolve': -1.0,
-               'time_iterate': -1.0,
-               'times': np.empty((1,)),
-               'arnorms': np.empty((1,))}
-
-        if logging:
-            quick_time = time.time
-        else:
-            quick_time = lambda: 0.0
-
-        sqrt_delta = np.sqrt(delta)
+        quick_time = fast_timer(not logging)
+        log = SketchAndPrecondLog()
 
         # Sketch the data matrix
         tic = quick_time()
         S = self.sketch_op_gen(d, n_rows, rng)
         A_ske = S @ A
-        log['time_sketch'] = quick_time() - tic
+        log.time_sketch = quick_time() - tic
 
         # Factor the sketch
-        #   We also measure the time to scale the right singular vectors
-        #   as needed for the preconditioner. SPO3 doesn't have a
-        #   directly comparable cost.
         tic = quick_time()
         if delta > 0:
             A_ske = np.vstack((A_ske, sqrt_delta * np.eye(n_cols)))
-        U, sigma, Vh = la.svd(A_ske, overwrite_a=True, check_finite=False,
-                              full_matrices=False)
-        eps = np.finfo(float).eps
-        rank = np.count_nonzero(sigma > sigma[0] * n_cols * eps)
-        N = Vh[:rank, :].T / sigma[:rank]
-        log['time_factor'] = quick_time() - tic
+        M, U, sigma, Vh = rpc.svd_right_precond(A_ske)
+        log.time_factor = quick_time() - tic
 
         if self.smart_init:
             tic = quick_time()
             b_ske = S @ b
-            z_ske = (U[:d, :][:, :rank]).T @ b_ske
-            x_ske = N @ z_ske
+            z_ske = U[:d, :].T @ b_ske
+            x_ske = M @ z_ske
             r = b - A @ x_ske
             if delta > 0:
                 r = np.concatenate((r, sqrt_delta * x_ske))
             if la.norm(r, ord=2) >= la.norm(b, ord=2):
                 z_ske = None
-            log['time_presolve'] = quick_time() - tic
-
-            tic = quick_time()
-            res = self.iterative_solver(A, b, None, delta, tol, iter_lim, N, False, z_ske)
-            toc = quick_time()
-            log['time_iterate'] = toc - tic
-            x_star = res[0]
+            log.time_presolve = quick_time() - tic
         else:
-            # No presolve
-            log['time_presolve'] = 0
-
-            # Iterative phase
-            tic = quick_time()
-            res = self.iterative_solver(A, b, None, delta, tol, iter_lim, N, False, None)
-            toc = quick_time()
-            log['time_iterate'] = toc - tic
-            x_star = res[0]
+            z_ske = None
+        tic = quick_time()
+        res = self.iterative_solver(A, b, None, delta, tol, iter_lim, M, False, z_ske)
+        toc = quick_time()
+        log.time_iterate = toc - tic
+        x_star = res[0]
 
         if logging:
-            iters = res[3]
+            arnorms = res[2]
+            iters = arnorms.size
             # Record a vector of cumulative times to (1) sketch and factor, and
             # (2) take an individual step in LSQR (amortized!).
             #
             # Amortizing the time taken by a single step of LSQR is reasonable,
             # because convergence behavior can be seen by how the normal
             # equation error decays from one iteration to the next.
-            time_setup = log['time_sketch']
-            time_setup += log['time_factor']
-            amortized = np.linspace(0, log['time_iterate'],
-                                    iters, endpoint=True)
-            cumulative = time_setup + log['time_presolve'] + amortized
+            time_setup = log.time_setup
+            amortized = np.linspace(0, log.time_iterate, iters, endpoint=True)
+            cumulative = time_setup + log.time_presolve + amortized
             times = np.concatenate(([time_setup], cumulative))
-            log['times'] = times
-
-            arnorms = res[8][:iters]
+            log.times = times
             # Record a vector of (preconditioned) normal equation errors. Treat
             # the zero vector as a theoretically valid initialization point which
             # we would use before the "solve" phase of "sketch-and-solve".
-            ar0 = N.T @ (A.T @ b)
+            ar0 = M.T @ (A.T @ b)
             ar0norm = la.norm(ar0)
             arnorms = np.concatenate(([ar0norm], arnorms))
-            log['arnorms'] = arnorms
+            log.errors = arnorms
 
         return x_star, log
 
@@ -331,38 +297,25 @@ class SPO3(OverLstsqSolver):
 
     def __call__(self, A, b, delta, tol, iter_lim, rng, logging=False):
         n_rows, n_cols = A.shape
+        sqrt_delta = np.sqrt(delta)
         d = dim_checks(self.sampling_factor, n_rows, n_cols)
-        if not np.isnan(tol):
-            assert tol >= 0
-            assert tol < np.inf
         rng = np.random.default_rng(rng)
 
-        log = {'time_sketch': -1.0,
-               'time_factor': -1.0,
-               'time_presolve': -1.0,
-               'time_iterate': -1.0,
-               'times': np.empty((1,)),
-               'arnorms': np.empty((1,))}
-
-        if logging:
-            quick_time = time.time
-        else:
-            quick_time = lambda: 0.0
-
-        sqrt_delta = np.sqrt(delta)
+        quick_time = fast_timer(not logging)
+        log = SketchAndPrecondLog()
 
         # Sketch the data matrix
         tic = quick_time()
         S = self.sketch_op_gen(d, n_rows, rng)
         A_ske = S @ A
-        log['time_sketch'] = quick_time() - tic
+        log.time_sketch = quick_time() - tic
 
         # Factor the sketch
         tic = quick_time()
         if delta > 0:
             A_ske = np.vstack((A_ske, sqrt_delta * np.eye(n_cols)))
         Q, R = la.qr(A_ske, overwrite_a=True, mode='economic')
-        log['time_factor'] = quick_time() - tic
+        log.time_factor = quick_time() - tic
 
         # Sketch-and-solve type preprocessing
         tic = quick_time()
@@ -374,30 +327,27 @@ class SPO3(OverLstsqSolver):
             r = np.concatenate((r, sqrt_delta * x_ske))
         if np.linalg.norm(r) >= np.linalg.norm(b):
             z_ske = None
-        log['time_presolve'] = quick_time() - tic
+        log.time_presolve = quick_time() - tic
 
         # Iterative phase
         tic = quick_time()
         res = self.iterative_solver(A, b, None, 0.0, tol, iter_lim, R, True, z_ske)
-        log['time_iterate'] = quick_time() - tic
+        log.time_iterate = quick_time() - tic
 
         if logging:
-            iters = res[3]
+            arnorms = res[2]
+            iters = arnorms.size
             # Record a vector of cumulative times to (1) sketch and factor, and
             # (2) take an individual step in LSQR (amortized!).
             #
             # Amortizing the time taken by a single step of LSQR is reasonable,
             # because convergence behavior can be seen by how the normal
             # equation error decays from one iteration to the next.
-            time_setup = log['time_sketch']
-            time_setup += log['time_factor']
-            amortized = np.linspace(0, log['time_iterate'],
-                                    iters, endpoint=True)
-            cumulative = time_setup + log['time_presolve'] + amortized
+            time_setup = log.time_setup
+            amortized = np.linspace(0, log.time_iterate, iters, endpoint=True)
+            cumulative = time_setup + log.time_presolve + amortized
             times = np.concatenate(([time_setup], cumulative))
-            log['times'] = times
-
-            arnorms = res[8][:iters]
+            log.times = times
             # Record a vector of (preconditioned) normal equation errors. Treat
             # the zero vector as a theoretically valid initialization point which
             # we would use before the "solve" phase of "sketch-and-solve".
@@ -405,7 +355,7 @@ class SPO3(OverLstsqSolver):
             ar0 = la.solve_triangular(R, ar0, 'T', lower=False, overwrite_b=True)
             ar0norm = la.norm(ar0)
             arnorms = np.concatenate(([ar0norm], arnorms))
-            log['arnorms'] = arnorms
+            log.errors = arnorms
 
         return res[0], log
 
@@ -439,48 +389,27 @@ class SPU1(UnderLstsqSolver):
         """TODO: write docstring"""
         n_rows, n_cols = A.shape
         d = dim_checks(self.sampling_factor, n_rows, n_cols)
-        if not np.isnan(tol):
-            assert tol >= 0
-            assert tol < np.inf
         rng = np.random.default_rng(rng)
 
-        log = {'time_sketch': -1.0,
-               'time_factor': -1.0,
-               'time_iterate': -1.0,
-               'times': np.empty((1,)),
-               'arnorms': np.empty((1,))}
-
-        if logging:
-            quick_time = time.time
-        else:
-            quick_time = lambda: 0.0
+        quick_time = fast_timer(not logging)
+        log = SketchAndPrecondLog()
 
         # Sketch the data matrix
         tic = quick_time()
         S = self.sketch_op_gen(d, n_rows, rng)
         A_ske = S @ A
-        log['time_sketch'] = quick_time() - tic
+        log.time_sketch = quick_time() - tic
 
         # Factor the sketch
-        #   We also measure the time to scale the right singular vectors
-        #   as needed for the preconditioner. SPO3 doesn't have a
-        #   directly comparable cost.
         tic = quick_time()
-        U, sigma, Vh = la.svd(A_ske, overwrite_a=True, check_finite=False,
-                              full_matrices=False)
-        eps = np.finfo(float).eps
-        rank = np.count_nonzero(sigma > sigma[0] * n_cols * eps)
-        M = Vh[:rank, :].T / sigma[:rank]
-        log['time_factor'] = quick_time() - tic
-
-        # No presolve
-        log['time_presolve'] = 0
+        M, U, sigma, Vh = rpc.svd_right_precond(A_ske)
+        log.time_factor = quick_time() - tic
 
         # Iterative phase
         tic = quick_time()
         res = self.iterative_solver(A, None, c, 0.0, tol, iter_lim, M, False, None)
         toc = quick_time()
-        log['time_iterate'] = toc - tic
+        log.time_iterate = toc - tic
         y_star = res[1]
 
         return y_star, log

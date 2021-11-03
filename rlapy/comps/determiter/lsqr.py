@@ -569,4 +569,6 @@ def lsqr(A, b, damp=0.0, atol=1e-8, btol=1e-8, conlim=1e8,
         print(str3 + '   ' + str4)
         print(' ')
 
+    arnorms = arnorms[arnorms > -1]
+
     return x, istop, itn, r1norm, r2norm, anorm, acond, arnorms, xnorm, var

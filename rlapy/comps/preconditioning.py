@@ -87,3 +87,15 @@ def a_times_m(A, delta, M, k=1):
     M_adj = lambda w: M.T @ w
 
     return A_precond, M_fwd, M_adj
+
+
+def svd_right_precond(A_ske):
+    U, sigma, Vh = la.svd(A_ske, overwrite_a=True, check_finite=False,
+                          full_matrices=False)
+    eps = np.finfo(float).eps
+    rank = np.count_nonzero(sigma > sigma[0] * A_ske.shape[1] * eps)
+    Vh = Vh[:rank, :]
+    U = U[:, :rank]
+    sigma = sigma[:rank]
+    M = Vh.T / sigma
+    return M, U, sigma, Vh
