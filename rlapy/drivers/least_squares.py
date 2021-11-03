@@ -6,7 +6,7 @@ Routines for (approximately) solving over-determined least squares problems
 import warnings
 import scipy.linalg as la
 import numpy as np
-
+import rlapy.comps.preconditioning as rpc
 import rlapy.comps.itersaddle as ris
 import time
 
@@ -191,6 +191,7 @@ class SPO1(OverLstsqSolver):
         self.iterative_solver = ris.PcSS2()  # LSQR
 
     def __call__(self, A, b, delta, tol, iter_lim, rng, logging=False):
+        #TODO: add tests for delta > 0
         n_rows, n_cols = A.shape
         d = dim_checks(self.sampling_factor, n_rows, n_cols)
         if not np.isnan(tol):
@@ -210,6 +211,8 @@ class SPO1(OverLstsqSolver):
         else:
             quick_time = lambda: 0.0
 
+        sqrt_delta = np.sqrt(delta)
+
         # Sketch the data matrix
         tic = quick_time()
         S = self.sketch_op_gen(d, n_rows, rng)
@@ -222,8 +225,7 @@ class SPO1(OverLstsqSolver):
         #   directly comparable cost.
         tic = quick_time()
         if delta > 0:
-            reg_I = np.sqrt(delta) * np.eye(n_cols)
-            A_ske = np.vstack((A_ske, reg_I))
+            A_ske = np.vstack((A_ske, sqrt_delta * np.eye(n_cols)))
         U, sigma, Vh = la.svd(A_ske, overwrite_a=True, check_finite=False,
                               full_matrices=False)
         eps = np.finfo(float).eps
@@ -234,10 +236,12 @@ class SPO1(OverLstsqSolver):
         if self.smart_init:
             tic = quick_time()
             b_ske = S @ b
-            z_ske = (U[:n_rows, :][:, :rank]).T @ b_ske
+            z_ske = (U[:d, :][:, :rank]).T @ b_ske
             x_ske = N @ z_ske
-            b_remainder = b - A @ x_ske
-            if la.norm(b_remainder, ord=2) >= la.norm(b, ord=2):
+            r = b - A @ x_ske
+            if delta > 0:
+                r = np.concatenate((r, sqrt_delta * x_ske))
+            if la.norm(r, ord=2) >= la.norm(b, ord=2):
                 z_ske = None
             log['time_presolve'] = quick_time() - tic
 
@@ -345,6 +349,8 @@ class SPO3(OverLstsqSolver):
         else:
             quick_time = lambda: 0.0
 
+        sqrt_delta = np.sqrt(delta)
+
         # Sketch the data matrix
         tic = quick_time()
         S = self.sketch_op_gen(d, n_rows, rng)
@@ -354,16 +360,19 @@ class SPO3(OverLstsqSolver):
         # Factor the sketch
         tic = quick_time()
         if delta > 0:
-            A_ske = np.vstack((A_ske, np.sqrt(delta)*np.eye(n_cols)))
+            A_ske = np.vstack((A_ske, sqrt_delta * np.eye(n_cols)))
         Q, R = la.qr(A_ske, overwrite_a=True, mode='economic')
         log['time_factor'] = quick_time() - tic
 
         # Sketch-and-solve type preprocessing
         tic = quick_time()
         b_ske = S @ b
-        z_ske = Q[:n_rows, :].T @ b_ske
+        z_ske = Q[:d, :].T @ b_ske
         x_ske = la.solve_triangular(R, z_ske, lower=False)
-        if np.linalg.norm(A @ x_ske - b) >= np.linalg.norm(b):
+        r = A @ x_ske - b
+        if delta > 0:
+            r = np.concatenate((r, sqrt_delta * x_ske))
+        if np.linalg.norm(r) >= np.linalg.norm(b):
             z_ske = None
         log['time_presolve'] = quick_time() - tic
 

@@ -2,9 +2,9 @@ import numpy as np
 import scipy.linalg as la
 from scipy.sparse import linalg as sparla
 
-from rlapy.comps.lsqr import lsqr
-from rlapy.comps.preconditioning import a_times_inv_r, lr_m_precond_gram, a_times_m, \
-    lr_invr_precond_gram
+from rlapy.comps.determiter.lsqr import lsqr
+from rlapy.comps.determiter.cg import cg
+from rlapy.comps.preconditioning import a_times_inv_r, a_times_m
 
 
 class PrecondSaddleSolver:
@@ -44,26 +44,50 @@ class PrecondSaddleSolver:
 class PcSS1(PrecondSaddleSolver):
 
     def __call__(self, A, b, c, delta, tol, iter_lim, R, upper_tri, z0):
-        k = 1 if (b is None or b.ndim == 1) else b.shape[1]
-
-        if upper_tri:
-            AtA_pc, M_fwd, M_adj = lr_invr_precond_gram(A, delta, R, k)
-        else:
-            AtA_pc, M_fwd, M_adj = lr_m_precond_gram(A, delta, R, k)
-
         if b is None:
             b = np.zeros(A.shape[0])
+        k = 1 if b.ndim == 1 else b.shape[1]
+        if k != 1:
+            raise NotImplementedError()
+        n = A.shape[1]  # == R.shape[0]
 
+        if upper_tri:
+            raise NotImplementedError()
+
+        # Note to Riley: refer to page 28 of your notebook
+        work1 = np.zeros(n)
+        work2 = np.zeros(A.shape[0])
+
+        def mv_sp(vec):
+            np.dot(R.T, vec, out=work1)
+            return R @ work1
+
+        M_sp = sparla.LinearOperator(shape=(n, n),
+                                     matvec=mv_sp, rmatvec=mv_sp)
+
+        def mv_gram(vec):
+            np.dot(A, vec, out=work2)
+            res = A.T @ work2
+            res += delta * vec
+            return res
+
+        gram = sparla.LinearOperator(shape=(n, n),
+                                     matvec=mv_gram, rmatvec=mv_gram)
+
+        rhs = A.T @ b
         if c is not None:
-            rhs = M_adj(A.T @ b + c)
-        else:
-            rhs = M_adj(A.T @ b)
-        result = sparla.cg(AtA_pc, rhs, atol=tol, tol=tol, maxiter=iter_lim, x0=z0)
+            rhs -= c
 
-        x_star = M_fwd(result[0])
+        if z0 is None:
+            x0 = None
+        else:
+            x0 = R @ z0
+
+        result = cg(gram, rhs, x0, tol, iter_lim, M_sp, None, None)
+        x_star = result[0]
         y_star = b - A @ x_star
 
-        result = (x_star, y_star) + result[2:]
+        result = (x_star, y_star, result[2])
 
         return result
 

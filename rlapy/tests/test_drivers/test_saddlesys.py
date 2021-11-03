@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import scipy.linalg as la
-from rlapy.drivers.saddlesys import SPS2, SaddleSolver
+from rlapy.drivers.saddlesys import SPS1, SPS2, SaddleSolver
 import rlapy.comps.itersaddle as itersad
 import rlapy.utils.sketching as usk
 import rlapy.comps.sketchers.oblivious as oblivious
@@ -113,7 +113,8 @@ class AlgTestHelper:
         block1 = self.y_approx + self.A @ self.x_approx - self.b
         block2 = self.A.T @ self.y_approx - self.delta * self.x_approx - self.c
         gap = np.concatenate([block1, block2])
-        nrm = la.norm(gap, ord=2)
+        rel = la.norm(np.hstack((self.b, self.c)))
+        nrm = la.norm(gap, ord=2) / rel
         self.tester.assertLessEqual(nrm, tol)
 
 
@@ -133,9 +134,70 @@ class TestSaddleSolver(unittest.TestCase):
             ath.test_block_residual(test_tol)
             ath.test_delta_xy(test_tol)
 
+    def _test_linspace_spec(self, alg, outer_seed=0):
+        rng = np.random.default_rng(outer_seed)
+
+        m, n, cond_num = 1000, 100, 1e5
+        spectrum = np.linspace(cond_num ** 0.5, cond_num ** -0.5, num=n)
+
+        delta = 0.0
+        ath = make_simple_prob(m, n, spectrum, delta, rng)
+        self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
+
+        delta = 1.0
+        ath = make_simple_prob(m, n, spectrum, delta, rng)
+        self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
+
+    def _test_logspace_spec(self, alg, outer_seed=0):
+        rng = np.random.default_rng(outer_seed)
+
+        m, n, cond_num = 1000, 100, 1e5
+        spec = np.logspace(np.log10(cond_num)/2, -np.log10(cond_num)/2, num=n)
+
+        ath = make_simple_prob(m, n, spec, 0.0, rng)
+        self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
+
+        ath = make_simple_prob(m, n, spec, 1.0, rng)
+        self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
+
+    def _test_higher_accuracy(self, alg, outer_seed=0):
+        rng = np.random.default_rng(outer_seed)
+
+        m, n, cond_num = 500, 50, 1e3
+        spectrum = np.linspace(cond_num ** 0.5, cond_num ** -0.5, num=n)
+
+        ath = make_simple_prob(m, n, spectrum, 0.0, rng)
+        self.run_ath(ath, alg, 0.0, n, 1e-10, self.SEEDS)
+
+        ath = make_simple_prob(m, n, spectrum, 1.0, rng)
+        self.run_ath(ath, alg, 0.0, n, 1e-10, self.SEEDS)
+
+
+class TestSPS1(TestSaddleSolver):
+
+    @staticmethod
+    def default_config():
+        alg = SPS1(
+            sketch_op_gen=oblivious.SkOpSJ(),
+            sampling_factor=3,
+            iterative_solver=itersad.PcSS1()
+        )
+        return alg
+
+    def test_linspace_spec(self):
+        alg = TestSPS1.default_config()
+        self._test_linspace_spec(alg)
+
+    def test_logspace_spec(self):
+        alg = TestSPS1.default_config()
+        self._test_logspace_spec(alg)
+
+    def test_higher_accuracy(self):
+        alg = TestSPS1.default_config()
+        self._test_higher_accuracy(alg)
+
 
 class TestSPS2(TestSaddleSolver):
-    #TODO: split use of PcSS1 off to a new SPS1 class.
     #TODO: add tests that check logging
     
     @staticmethod
@@ -150,55 +212,11 @@ class TestSPS2(TestSaddleSolver):
     def test_linspace_spec(self):
         alg = TestSPS2.default_config()
         self._test_linspace_spec(alg)
-        alg.iterative_solver = itersad.PcSS1()
-        self._test_linspace_spec(alg)
-
-    def _test_linspace_spec(self, alg):
-        rng = np.random.default_rng(0)
-
-        m, n, cond_num = 1000, 100, 1e5
-        spectrum = np.linspace(cond_num ** 0.5, cond_num ** -0.5, num=n)
-
-        delta = 0.0
-        ath = make_simple_prob(m, n, spectrum, delta, rng)
-        self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
-
-        delta = 1.0
-        ath = make_simple_prob(m, n, spectrum, delta, rng)
-        self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
 
     def test_logspace_spec(self):
         alg = TestSPS2.default_config()
         self._test_logspace_spec(alg)
-        alg.iterative_solver = itersad.PcSS1()
-        self._test_logspace_spec(alg)
-
-    def _test_logspace_spec(self, alg):
-        rng = np.random.default_rng(0)
-
-        m, n, cond_num = 1000, 100, 1e5
-        spec = np.logspace(np.log10(cond_num)/2, -np.log10(cond_num)/2, num=n)
-
-        ath = make_simple_prob(m, n, spec, 0.0, rng)
-        self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
-
-        ath = make_simple_prob(m, n, spec, 1.0, rng)
-        self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
 
     def test_higher_accuracy(self):
         alg = TestSPS2.default_config()
         self._test_higher_accuracy(alg)
-        alg.iterative_solver = itersad.PcSS1()
-        self._test_higher_accuracy(alg)
-
-    def _test_higher_accuracy(self, alg):
-        rng = np.random.default_rng(0)
-
-        m, n, cond_num = 500, 50, 1e3
-        spectrum = np.linspace(cond_num ** 0.5, cond_num ** -0.5, num=n)
-
-        ath = make_simple_prob(m, n, spectrum, 0.0, rng)
-        self.run_ath(ath, alg, 0.0, n, 1e-8, self.SEEDS)
-
-        ath = make_simple_prob(m, n, spectrum, 1.0, rng)
-        self.run_ath(ath, alg, 0.0, n, 1e-8, self.SEEDS)

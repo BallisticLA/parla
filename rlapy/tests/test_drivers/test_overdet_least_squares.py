@@ -248,7 +248,7 @@ class TestOverLstsqSolver(unittest.TestCase):
     pass
 
 
-class TestSAP1(TestOverLstsqSolver):
+class TestSPO3(TestOverLstsqSolver):
     """
     Test SPO3 objects (sketch-and-precondition based on QR).
 
@@ -294,7 +294,7 @@ class TestSAP1(TestOverLstsqSolver):
         self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
 
 
-class TestSAP2(TestOverLstsqSolver):
+class TestSPO1(TestOverLstsqSolver):
     """
     Test SPO1 objects (sketch-and-precondition based on SVD).
 

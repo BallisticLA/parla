@@ -1,10 +1,12 @@
 import scipy.linalg as la
 import numpy as np
-
+from typing import Union
 import rlapy.comps.itersaddle as ris
 import rlapy.comps.preconditioning as rpc
 from rlapy.drivers.least_squares import dim_checks
 import time
+
+NoneType = type(None)
 
 
 class SaddleSolver:
@@ -13,13 +15,111 @@ class SaddleSolver:
         raise NotImplementedError()
 
 
+class SPS1(SaddleSolver):
+
+    def __init__(self, sketch_op_gen,
+                 sampling_factor: int,
+                 iterative_solver: Union[NoneType, ris.PrecondSaddleSolver]):
+        self.sketch_op_gen = sketch_op_gen
+        self.sampling_factor = sampling_factor
+        if iterative_solver is None:
+            iterative_solver = ris.PcSS1()
+        self.iterative_solver = iterative_solver
+        pass
+
+    def __call__(self, A, b, c, delta, tol, iter_lim, rng, logging=False):
+        m, n = A.shape
+        d = dim_checks(self.sampling_factor, m, n)
+        if not np.isnan(tol):
+            assert tol >= 0
+            assert tol < np.inf
+        rng = np.random.default_rng(rng)
+
+        if b is None:
+            b = np.zeros(m)
+
+        log = {'time_sketch': -1.0,
+               'time_factor': -1.0,
+               'time_convert': -1.0,
+               'time_presolve': -1.0,
+               'time_iterate': -1.0,
+               'times': np.empty((1,)),
+               'arnorms': np.empty((1,))}
+
+        if logging:
+            quick_time = time.time
+        else:
+            quick_time = lambda: 0.0
+
+        sqrt_delta = np.sqrt(delta)
+
+        # Sketch the data matrix
+        tic = quick_time()
+        S = self.sketch_op_gen(d, m, rng)
+        A_ske = S @ A
+        A_ske = rpc.a_lift(A_ske, sqrt_delta)  # returns A_ske when delta=0.
+        log['time_sketch'] = quick_time() - tic
+
+        # Factor the sketch
+        tic = quick_time()
+        U, sigma, Vh = la.svd(A_ske, overwrite_a=True, check_finite=False,
+                              full_matrices=False)
+        eps = np.finfo(float).eps
+        rank = np.count_nonzero(sigma > sigma[0] * n * eps)
+        Vh = Vh[:rank, :]
+        # U = U[:, :rank]
+        sigma = sigma[:rank]
+        M = Vh.T / sigma  # M = V \Sigma^{\dagger}
+        log['time_factor'] = quick_time() - tic
+
+        # Presolve ...
+        #   (A_ske' A_ske ) x_ske = (A'b - c)                         (1, define)
+        #   (V \Sigma^2 V') x_ske = (A'b - c)                         (2)
+        #      \Sigma   V'  x_ske = \Sigma^{\dagger} V'(A'b - c)      (3)
+        #   x_ske = V \Sigma^{\dagger} z_ske = M z_ske                (4, define)
+        #   z_ske = \Sigma^{\dagger} V'(A'b - c)                      (5)
+        tic = quick_time()
+        rhs = A.T @ b - c
+        z_ske = (Vh @ rhs) / sigma
+        x_ske = M @ z_ske
+        rhs_pc = M.T @ rhs
+        lhs_ske_pc = M.T @ (A.T @ (A @ x_ske) + delta*x_ske)
+        if la.norm(lhs_ske_pc - rhs_pc, ord=2) >= la.norm(rhs_pc, ord=2):
+            z_ske = None
+        log['time_presolve'] = quick_time() - tic
+
+        # Main iterative phase
+        tic = quick_time()
+        res = self.iterative_solver(A, b, c, delta, tol, iter_lim, M, False, z_ske)
+        log['time_iterate'] = quick_time() - tic
+        x_star = res[0]
+        y_star = b - A @ x_star
+
+        # Finish timings
+        if logging:
+            residuals = res[2]
+            iters = residuals.size
+            time_setup = log['time_sketch']
+            time_setup += log['time_factor']
+            time_setup += log['time_convert']
+            iterating = np.linspace(0, log['time_iterate'], iters, endpoint=True)
+            cumulative = time_setup + log['time_presolve'] + iterating
+            times = np.concatenate(([time_setup], cumulative))
+            log['times'] = times
+            log['arnorms'] = np.concatenate(([la.norm(rhs)], residuals))
+
+        return x_star, y_star, log
+
+
 class SPS2(SaddleSolver):
 
     def __init__(self, sketch_op_gen,
                  sampling_factor: int,
-                 iterative_solver: ris.PrecondSaddleSolver):
+                 iterative_solver: Union[NoneType, ris.PrecondSaddleSolver]):
         self.sketch_op_gen = sketch_op_gen
         self.sampling_factor = sampling_factor
+        if iterative_solver is None:
+            iterative_solver = ris.PcSS2()
         self.iterative_solver = iterative_solver
         pass
 
@@ -111,8 +211,5 @@ class SPS2(SaddleSolver):
             arnorms = res[8][:iters]
             ar0 = M.T @ (A_aug.T @ b_aug)
             log['arnorms'] = np.concatenate(([la.norm(ar0)], arnorms))
-
-            log['x'] = x_star
-            log['y'] = y_star
 
         return x_star, y_star, log
