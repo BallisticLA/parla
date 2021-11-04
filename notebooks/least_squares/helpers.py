@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.linalg as la
-import rlapy.utils.sketching as sk
-from rlapy.tests.test_drivers.test_overdet_least_squares import AlgTestHelper
+import parla.utils.sketching as sk
+from parla.tests.test_drivers.test_optim.test_overdet_least_squares import AlgTestHelper
 
 
 def make_demo_helper(m, n, spectrum, prop_range, rng, only_Ab=False):

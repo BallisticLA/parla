@@ -1,12 +1,12 @@
 import setuptools
 
 setuptools.setup(
-    name='rlapy',
-    version='0.1.1',
+    name='parla',
+    version='0.1.2',
     author='',
     url='https://github.com/rileyjmurray/rlapy',
     author_email='',
-    description='Randomized linear algebra in python',
+    description='Python Algorithms for Randomized Linear Algebra',
     packages=setuptools.find_packages(),
     classifiers=[
         'Programming Language :: Python :: 3.7',

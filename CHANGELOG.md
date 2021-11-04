@@ -4,9 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-# [0.1.1] - working version
+# [0.1.2] - working version
+## Changed
+ - Package name changes from rlapy to parla.
+
+
+# [0.1.1] - superceded on Nov 3, 2021
 ## Added
- - drivers: Sketch-and-Precondition for Saddle point systems (SPS2, name used in design doc)
+ - drivers: Sketch-and-Precondition for Saddle point systems (SPS1, SPS2, name used in design doc)
  - drivers: QB-backed eigenvalue decomposition (EVD1)
  - drivers: Nystrom-backed eigenvalue decomposition (EVD2)
  - drivers: one-sided ID by QRCP of a sketch (OSID1, OSID2)
