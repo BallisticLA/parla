@@ -26,6 +26,7 @@ def a_times_inv_r(A, delta, R, k=1):
 
     sqrt_delta = np.sqrt(delta)
     A_lift = a_lift(A, sqrt_delta)
+    m = A.shape[0]
 
     def forward(arg, work):
         np.copyto(work, arg)
@@ -35,9 +36,9 @@ def a_times_inv_r(A, delta, R, k=1):
         return out
 
     def adjoint(arg, work):
-        np.dot(A.T, arg, out=work)
+        np.dot(A.T, arg[:m], out=work)
         if delta > 0:
-            work += sqrt_delta * arg
+            work += sqrt_delta * arg[m:]
         out = la.solve_triangular(R, work, 'T', lower=False, check_finite=False)
         return out
 
@@ -47,7 +48,7 @@ def a_times_inv_r(A, delta, R, k=1):
     # if k != 1 then we'd need to allocate workspace differently.
     # (And maybe use workspace differently.)
 
-    A_precond = sparla.LinearOperator(shape=A.shape,
+    A_precond = sparla.LinearOperator(shape=A_lift.shape,
                                       matvec=mv, rmatvec=rmv)
 
     M_fwd = lambda z: la.solve_triangular(R, z, lower=False)
@@ -62,6 +63,7 @@ def a_times_m(A, delta, M, k=1):
 
     sqrt_delta = np.sqrt(delta)
     A_lift = a_lift(A, sqrt_delta)
+    m = A.shape[0]
 
     def forward(arg, work):
         np.dot(M, arg, out=work)
@@ -69,9 +71,9 @@ def a_times_m(A, delta, M, k=1):
         return out
 
     def adjoint(arg, work):
-        np.dot(A.T, arg, out=work)
+        np.dot(A.T, arg[:m], out=work)
         if delta > 0:
-            work += sqrt_delta * arg
+            work += sqrt_delta * arg[m:]
         return M.T @ work
 
     vec_work = np.zeros(A.shape[1])
@@ -80,7 +82,7 @@ def a_times_m(A, delta, M, k=1):
     # if k != 1 then we'd need to allocate workspace differently.
     # (And maybe use workspace differently.)
 
-    A_precond = sparla.LinearOperator(shape=(A.shape[0], M.shape[1]),
+    A_precond = sparla.LinearOperator(shape=(A_lift.shape[0], M.shape[1]),
                                       matvec=mv, rmatvec=rmv)
 
     M_fwd = lambda z: M @ z

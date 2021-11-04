@@ -92,6 +92,23 @@ def inconsistent_gen():
     return ath
 
 
+def inconsistent_stackid():
+    seed = 2837592038243
+    rng = np.random.default_rng(seed)
+
+    A = np.tile(np.eye(70), (10, 1))
+    m, n = A.shape
+    A = (A.T * rng.lognormal(size=(m,))).T
+    x0 = rng.standard_normal(size=(n,))
+    b0 = A @ x0
+    b = b0 + rng.standard_normal(size=(m,))
+
+    U, spec, Vt = la.svd(A, full_matrices=False)
+    x = (Vt.T @ (U.T @ b) / spec)
+
+    ath = AlgTestHelper(A, b, x, U, spec, Vt)
+    return ath
+
 """
 TODO: update these tests to take advantage of logging in least-squares drivers.
 The logging will let us test convergence rates without having to re-run the algorithm
@@ -187,7 +204,6 @@ class AlgTestHelper:
 
 
 class TestOverLstsqSolver(unittest.TestCase):
-    # TODO: add tests that check logging
 
     SEEDS = [1, 4, 15, 31, 42]
 
@@ -215,37 +231,24 @@ class TestOverLstsqSolver(unittest.TestCase):
             ath.test_x_angle(test_tol)
             ath.test_objective(test_tol)
 
-    def run_batch_sap(self, sap, tol, iter_lim, tolfac1, tolfac2):
-        """
-        For several random least-squares problems (data (A,b)), compute
-            x = sap(A, b, tol, iter_lim, rng)
-        and
-            x_opt = np.linalg.lstsq(A, b)[0].
-
-        Check that
-            ||x - x_opt|| <= tolfac1 * tol
-        and check that
-            mean(||x - x_opt|| for all random (A, b)) <= tolfac2 * tol.
-
-        You should have tolfac1 > tolfac2 > 1.
-        """
-        n_rows, n_cols = 2000, 200
-        errors = np.zeros(len(self.SEEDS))
-        for i, seed in enumerate(self.SEEDS):
-            rng = np.random.default_rng(seed)
-            A = matmakers.simple_mat(n_rows, n_cols, scale=5, rng=rng)
-            x0 = np.random.randn(n_cols)
-            b0 = A @ x0
-            b = b0 + 0.05 * rng.standard_normal(n_rows)
-            x_approx = sap(A, b, 0.0, tol=tol, iter_lim=iter_lim, rng=rng)[0]
-            x_opt = np.linalg.lstsq(A, b, rcond=None)[0]
-            error = np.linalg.norm(x_approx - x_opt)
-            errors[i] = error
-            self.assertLessEqual(error, tol * tolfac1)
-        mean_error = np.mean(errors)
-        self.assertLessEqual(mean_error, tol * tolfac2)
-
-    pass
+    def _test_convergence_rate(self, ath, alg, ridge=False):
+        rng = np.random.default_rng(34998751340)
+        delta = 0.25 if ridge else 0.0
+        ath.tester = self
+        x, log = alg(ath.A, ath.b, delta, 1e-12, 100, rng, logging=True)
+        fit, r2 = ustats.loglinear_fit(np.arange(log.errors.size-1),
+                                       log.errors[1:])
+        self.assertGreaterEqual(r2, 0.95)  # linear convergence
+        self.assertLess(fit[1], -0.3)  # decay faster than \exp(-0.3 t)
+        self.assertLessEqual(log.errors[-1], 1e-6)
+        if ridge:
+            m, n = ath.A.shape
+            scaled_I = delta**0.5 * np.eye(n)
+            ath.x_opt = la.lstsq(np.vstack((ath.A, scaled_I)),
+                                 np.hstack((ath.b, np.zeros(n))))[0]
+            ath.x_approx = x
+            ath.test_delta_x(1e-6)
+        pass
 
 
 class TestSPO3(TestOverLstsqSolver):
@@ -259,18 +262,30 @@ class TestSPO3(TestOverLstsqSolver):
     """
 
     def test_srct(self):
-        sap = rlsq.SPO3(oblivious.SkOpTC(), sampling_factor=3)
-        self.run_batch_sap(sap, 1e-8, 40, 100.0, 10.0)
+        sap = rlsq.SPO3(oblivious.SkOpTC(), sampling_factor=2)
+        ath = inconsistent_gen()
+        self._test_convergence_rate(ath, sap, ridge=False)
+        self._test_convergence_rate(ath, sap, ridge=True)
+        ath = inconsistent_stackid()
+        self._test_convergence_rate(ath, sap, ridge=False)
         pass
 
     def test_gaussian(self):
         sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=2)
-        self.run_batch_sap(sap, 1e-8, 40, 100.0, 10.0)
+        ath = inconsistent_gen()
+        self._test_convergence_rate(ath, sap, ridge=False)
+        self._test_convergence_rate(ath, sap, ridge=True)
+        ath = inconsistent_stackid()
+        self._test_convergence_rate(ath, sap, ridge=False)
         pass
 
     def test_sjlt(self):
-        sap = rlsq.SPO3(oblivious.SkOpSJ(vec_nnz=8), sampling_factor=3)
-        self.run_batch_sap(sap, 1e-8, 40, 100.0, 10.0)
+        sap = rlsq.SPO3(oblivious.SkOpSJ(vec_nnz=8), sampling_factor=2)
+        ath = inconsistent_gen()
+        self._test_convergence_rate(ath, sap, ridge=False)
+        self._test_convergence_rate(ath, sap, ridge=True)
+        ath = inconsistent_stackid()
+        self._test_convergence_rate(ath, sap, ridge=False)
         pass
 
     def test_consistent_tall(self):
@@ -310,20 +325,39 @@ class TestSPO1(TestOverLstsqSolver):
     def test_srct(self):
         sap = rlsq.SPO1(oblivious.SkOpTC(),
                         sampling_factor=3, smart_init=True)
-        self.run_batch_sap(sap, 1e-8, 40, 100.0, 10.0)
+        ath = inconsistent_gen()
+        self._test_convergence_rate(ath, sap, ridge=False)
+        self._test_convergence_rate(ath, sap, ridge=True)
+        ath = inconsistent_stackid()
+        self._test_convergence_rate(ath, sap, ridge=False)
         pass
 
-    def test_gaussian(self):
+    def test_gaussian_zero_init(self):
+        sap = rlsq.SPO1(oblivious.SkOpGA(),
+                        sampling_factor=3, smart_init=False)
+        ath = inconsistent_gen()
+        self._test_convergence_rate(ath, sap, ridge=False)
+        self._test_convergence_rate(ath, sap, ridge=True)
+        ath = inconsistent_stackid()
+        self._test_convergence_rate(ath, sap, ridge=False)
+
+    def test_gaussian_smart_init(self):
         sap = rlsq.SPO1(oblivious.SkOpGA(),
                         sampling_factor=3, smart_init=True)
-        self.run_batch_sap(sap, 1e-8, 40, 100.0, 10.0)
-        sap.smart_init = False
-        self.run_batch_sap(sap, 1e-8, 40, 100.0, 10.0)
+        ath = inconsistent_gen()
+        self._test_convergence_rate(ath, sap, ridge=False)
+        self._test_convergence_rate(ath, sap, ridge=True)
+        ath = inconsistent_stackid()
+        self._test_convergence_rate(ath, sap, ridge=False)
 
     def test_sjlt(self):
         sap = rlsq.SPO1(oblivious.SkOpSJ(vec_nnz=8),
                         sampling_factor=3, smart_init=True)
-        self.run_batch_sap(sap, 1e-8, 40, 100.0, 10.0)
+        ath = inconsistent_gen()
+        self._test_convergence_rate(ath, sap, ridge=False)
+        self._test_convergence_rate(ath, sap, ridge=True)
+        ath = inconsistent_stackid()
+        self._test_convergence_rate(ath, sap, ridge=False)
 
     def test_consistent_tall(self):
         ath = consistent_tall()

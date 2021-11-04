@@ -316,7 +316,7 @@ class SPO3(OverLstsqSolver):
 
         # Iterative phase
         tic = quick_time()
-        res = self.iterative_solver(A, b, None, 0.0, tol, iter_lim, R, True, z_ske)
+        res = self.iterative_solver(A, b, None, delta, tol, iter_lim, R, True, z_ske)
         log.time_iterate = quick_time() - tic
 
         if logging:
