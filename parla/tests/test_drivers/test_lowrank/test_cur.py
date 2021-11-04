@@ -14,7 +14,8 @@ def run_cur_test(alg, m, n, rank, k, over, test_tol, seed):
     A = matmakers.rand_low_rank(m, n, rank, rng)
     Js, U, Is = alg(A, k, over, rng)
     A_id = A[:, Js] @ (U @ A[Is, :])
-    err = la.norm(A - A_id, ord='fro') / la.norm(A, ord='fro')
+    U, s, Vt = la.svd(A)
+    err = (la.norm(A - A_id, ord='fro') - la.norm(s[k:])) / la.norm(s)
     assert err < test_tol
 
 
@@ -45,9 +46,11 @@ class TestCURD1(unittest.TestCase):
             passes_per_stab=1
         )))
         m, n = 100, 30
-        run_cur_test(alg, m, n, rank=30, k=27, over=3, test_tol=0.05, seed=0)
-        run_cur_test(alg, m, n, rank=30, k=27, over=1, test_tol=0.1, seed=0)
+        run_cur_test(alg, m, n, rank=30, k=27, over=3, test_tol=0.1, seed=0)
+        run_cur_test(alg, m, n, rank=30, k=25, over=4, test_tol=0.1, seed=0)
+        run_cur_test(alg, m, n, rank=30, k=5, over=5, test_tol=0.35, seed=0)
         # Re-run tests with wide data matrices
         m, n = 30, 100
-        run_cur_test(alg, m, n, rank=30, k=27, over=3, test_tol=0.05, seed=0)
-        run_cur_test(alg, m, n, rank=30, k=27, over=1, test_tol=0.1, seed=0)
+        run_cur_test(alg, m, n, rank=30, k=27, over=3, test_tol=0.1, seed=0)
+        run_cur_test(alg, m, n, rank=30, k=25, over=4, test_tol=0.1, seed=0)
+        run_cur_test(alg, m, n, rank=30, k=5, over=5, test_tol=0.35, seed=0)
