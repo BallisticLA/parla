@@ -31,6 +31,7 @@ class SPS1(SaddleSolver):
 
     def __call__(self, A, b, c, delta, tol, iter_lim, rng, logging=False):
         m, n = A.shape
+        sqrt_delta = np.sqrt(delta)
         d = dim_checks(self.sampling_factor, m, n)
         rng = np.random.default_rng(rng)
 
@@ -39,8 +40,6 @@ class SPS1(SaddleSolver):
 
         quick_time = fast_timer(not logging)
         log = SketchAndPrecondLog()
-
-        sqrt_delta = np.sqrt(delta)
 
         # Sketch the data matrix
         tic = quick_time()
@@ -61,7 +60,9 @@ class SPS1(SaddleSolver):
         #   x_ske = V \Sigma^{\dagger} z_ske = M z_ske                (4, define)
         #   z_ske = \Sigma^{\dagger} V'(A'b - c)                      (5)
         tic = quick_time()
-        rhs = A.T @ b - c
+        rhs = A.T @ b
+        if c is not None:
+            rhs -= c
         z_ske = (Vh @ rhs) / sigma
         x_ske = M @ z_ske
         rhs_pc = M.T @ rhs
@@ -75,18 +76,12 @@ class SPS1(SaddleSolver):
         res = self.iterative_solver(A, b, c, delta, tol, iter_lim, M, False, z_ske)
         log.time_iterate = quick_time() - tic
         x_star = res[0]
-        y_star = b - A @ x_star
+        y_star = res[1]
 
         # Finish timings
         if logging:
-            residuals = res[2]
-            iters = residuals.size
-            time_setup = log.time_setup
-            iterating = np.linspace(0, log.time_iterate, iters, endpoint=True)
-            cumulative = time_setup + log.time_presolve + iterating
-            times = np.concatenate(([time_setup], cumulative))
-            log.time = times
-            log.errors = np.concatenate(([la.norm(rhs)], residuals))
+            log.wrap_up(res[2], la.norm(rhs))
+            log.error_desc = self.iterative_solver.ERROR_METRIC_INFO
 
         return x_star, y_star, log
 
@@ -105,6 +100,7 @@ class SPS2(SaddleSolver):
 
     def __call__(self, A, b, c, delta, tol, iter_lim, rng, logging=False):
         m, n = A.shape
+        sqrt_delta = np.sqrt(delta)
         d = dim_checks(self.sampling_factor, m, n)
         rng = np.random.default_rng(rng)
 
@@ -113,8 +109,6 @@ class SPS2(SaddleSolver):
 
         quick_time = fast_timer(not logging)
         log = SketchAndPrecondLog()
-
-        sqrt_delta = np.sqrt(delta)
 
         # Sketch the data matrix
         tic = quick_time()
@@ -155,19 +149,15 @@ class SPS2(SaddleSolver):
                                     tol, iter_lim, M, False, z_ske)
         log.time_iterate = quick_time() - tic
         x_star = res[0]
-        y_star = b - A @ x_star
+        y_star = b - A @ x_star  # recompute; res[1] is for the transformed system
         res = (x_star, y_star, res[2])
 
         # Finish timings
         if logging:
-            iters = res[2].size
-            time_setup = log.time_setup
-            iterating = np.linspace(0, log.time_iterate, iters, endpoint=True)
-            cumulative = time_setup + log.time_presolve + iterating
-            times = np.concatenate(([time_setup], cumulative))
-            log.times = times
-            arnorms = res[8][:iters]
             ar0 = M.T @ (A_aug.T @ b_aug)
-            log.errors = np.concatenate(([la.norm(ar0)], arnorms))
+            log.wrap_up(res[2], la.norm(ar0))
+            log.error_desc = self.iterative_solver.ERROR_METRIC_INFO
+            msg = "The metric above is computed w.r.t. a transformed problem."
+            log.error_desc += msg
 
         return x_star, y_star, log

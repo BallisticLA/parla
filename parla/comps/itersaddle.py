@@ -43,6 +43,10 @@ class PrecondSaddleSolver:
 
 class PcSS1(PrecondSaddleSolver):
 
+    ERROR_METRIC_INFO = """
+        2-norm of the residual from the normal equations
+    """
+
     def __call__(self, A, b, c, delta, tol, iter_lim, R, upper_tri, z0):
         if b is None:
             b = np.zeros(A.shape[0])
@@ -93,6 +97,10 @@ class PcSS1(PrecondSaddleSolver):
 
 
 class PcSS2(PrecondSaddleSolver):
+
+    ERROR_METRIC_INFO = """
+        2-norm of the residual from the preconditioned normal equations
+    """
 
     def __call__(self, A, b, c, delta, tol, iter_lim, R, upper_tri, z0):
         m, n = A.shape

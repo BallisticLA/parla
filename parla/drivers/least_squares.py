@@ -69,8 +69,10 @@ class OverLstsqSolver:
             x_star.shape == (A.shape[1],). Approximate solution to the least
             squares problem under consideration.
 
-        log : dict
-            Keyed by strings; contains algorithm-specific metadata.
+        log : Union[dict, SketchAndPrecondLog]
+            If a dict, then log is keyed by strings. It contains runtime information.
+            If a SketchAndPrecondLog, then it contains runtime and error metric
+            information (refer to SketchAndPrecondLog docs for more info).
         """
         raise NotImplementedError()
 
@@ -231,26 +233,9 @@ class SPO1(OverLstsqSolver):
         x_star = res[0]
 
         if logging:
-            arnorms = res[2]
-            iters = arnorms.size
-            # Record a vector of cumulative times to (1) sketch and factor, and
-            # (2) take an individual step in LSQR (amortized!).
-            #
-            # Amortizing the time taken by a single step of LSQR is reasonable,
-            # because convergence behavior can be seen by how the normal
-            # equation error decays from one iteration to the next.
-            time_setup = log.time_setup
-            amortized = np.linspace(0, log.time_iterate, iters, endpoint=True)
-            cumulative = time_setup + log.time_presolve + amortized
-            times = np.concatenate(([time_setup], cumulative))
-            log.times = times
-            # Record a vector of (preconditioned) normal equation errors. Treat
-            # the zero vector as a theoretically valid initialization point which
-            # we would use before the "solve" phase of "sketch-and-solve".
             ar0 = M.T @ (A.T @ b)
-            ar0norm = la.norm(ar0)
-            arnorms = np.concatenate(([ar0norm], arnorms))
-            log.errors = arnorms
+            log.wrap_up(res[2], la.norm(ar0))
+            log.error_desc = self.iterative_solver.ERROR_METRIC_INFO
 
         return x_star, log
 
@@ -335,27 +320,10 @@ class SPO3(OverLstsqSolver):
         log.time_iterate = quick_time() - tic
 
         if logging:
-            arnorms = res[2]
-            iters = arnorms.size
-            # Record a vector of cumulative times to (1) sketch and factor, and
-            # (2) take an individual step in LSQR (amortized!).
-            #
-            # Amortizing the time taken by a single step of LSQR is reasonable,
-            # because convergence behavior can be seen by how the normal
-            # equation error decays from one iteration to the next.
-            time_setup = log.time_setup
-            amortized = np.linspace(0, log.time_iterate, iters, endpoint=True)
-            cumulative = time_setup + log.time_presolve + amortized
-            times = np.concatenate(([time_setup], cumulative))
-            log.times = times
-            # Record a vector of (preconditioned) normal equation errors. Treat
-            # the zero vector as a theoretically valid initialization point which
-            # we would use before the "solve" phase of "sketch-and-solve".
             ar0 = A.T @ b
             ar0 = la.solve_triangular(R, ar0, 'T', lower=False, overwrite_b=True)
-            ar0norm = la.norm(ar0)
-            arnorms = np.concatenate(([ar0norm], arnorms))
-            log.errors = arnorms
+            log.wrap_up(res[2], la.norm(ar0))
+            log.error_desc = self.iterative_solver.ERROR_METRIC_INFO
 
         return res[0], log
 
@@ -378,6 +346,12 @@ class SPU1(UnderLstsqSolver):
     where A is tall.
 
     #TODO: write proper docstring
+    """
+
+    ERROR_METRIC_INFO = """
+        || Ap (Ap)' y - (Ap) c ||_2, where "Ap" is a right-preconditioned
+        version of A. Under typical parameter settings, the condition 
+        number of Ap is <= 10.
     """
 
     def __init__(self, sketch_op_gen, sampling_factor: int):
@@ -411,6 +385,10 @@ class SPU1(UnderLstsqSolver):
         toc = quick_time()
         log.time_iterate = toc - tic
         y_star = res[1]
+
+        if logging:
+            log.wrap_up(res[2], la.norm(A @ (M @ c)))
+            log.error_desc = self.ERROR_METRIC_INFO
 
         return y_star, log
 
