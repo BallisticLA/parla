@@ -182,3 +182,28 @@ class CURD1(CURDecomposition):
                            rmatvec=u_rmatmul, rmatmat=u_rmatmul)
 
         return Js, U, Is
+
+
+class CURD2(CURDecomposition):
+
+    def __init__(self, osid: OneSidedID):
+        self.osid = osid
+
+    def __call__(self, A, k, over, rng):
+        rng = np.random.default_rng(rng)
+        if A.shape[0] > A.shape[1]:
+            X, Js = self.osid(A, k, over, axis=1, rng=rng)
+            # A \approx A[:, Js] @ X
+            _, _, Is = la.qr(A[:, Js].T, mode='economic', pivoting=True)
+            Is = Is[:k]
+            U = (la.lstsq(A[Is, :].T, X.T)[0]).T
+            # U = X (A[Is, :]^\dagger)
+            return Js, U, Is
+        else:
+            Z, Is = self.osid(A, k, over, axis=0, rng=rng)
+            # A \approx Z @ A[Is, :]
+            _, _, Js = la.qr(A[Is, :], mode='economic', pivoting=True)
+            Js = Js[:k]
+            U = la.lstsq(A[:, Js], Z)[0]
+            # U = A[:, Js]^\dagger Z
+            return Js, U, Is
