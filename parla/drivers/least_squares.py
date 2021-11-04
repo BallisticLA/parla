@@ -12,10 +12,6 @@ from parla.utils.timing import fast_timer
 from parla.comps.determiter.logging import SketchAndPrecondLog
 
 
-#TODO: pull out common blocks of code into helper functions
-#   -- push more preamble code into expanded version of "dim_checks"
-#   Only do this once we're ready for the same change on the Matlab side.
-
 class OverLstsqSolver:
     """Solver for overdetermined least squares problems."""
 
@@ -191,7 +187,6 @@ class SPO1(OverLstsqSolver):
         self.iterative_solver = ris.PcSS2()  # LSQR
 
     def __call__(self, A, b, delta, tol, iter_lim, rng, logging=False):
-        #TODO: add tests for delta > 0
         n_rows, n_cols = A.shape
         sqrt_delta = np.sqrt(delta)
         d = dim_checks(self.sampling_factor, n_rows, n_cols)

@@ -4,6 +4,7 @@ import scipy.linalg as la
 from parla.drivers.saddlesys import SPS1, SPS2, SaddleSolver
 import parla.comps.itersaddle as itersad
 import parla.utils.sketching as usk
+import parla.utils.stats as ustats
 import parla.comps.sketchers.oblivious as oblivious
 
 
@@ -125,14 +126,21 @@ class TestSaddleSolver(unittest.TestCase):
     def run_ath(self, ath: AlgTestHelper,
                       alg: SaddleSolver,
                       alg_tol, iter_lim,
-                      test_tol, seeds):
+                      test_tol, seeds, rates=True):
         ath.tester = self
         for seed in seeds:
             rng = np.random.default_rng(seed)
-            ath.result = alg(ath.A, ath.b, ath.c, ath.delta, alg_tol, iter_lim, rng)
+            ath.result = alg(ath.A, ath.b, ath.c, ath.delta, alg_tol, iter_lim, rng,
+                             logging=rates)
             ath.test_normal_eq_residual(test_tol)
             ath.test_block_residual(test_tol)
             ath.test_delta_xy(test_tol)
+            if rates:
+                log = ath.result[2]
+                fit, r2 = ustats.loglinear_fit(np.arange(log.errors.size - 1),
+                                               log.errors[1:])
+                self.assertGreaterEqual(r2, 0.95)  # linear convergence
+                self.assertLess(fit[1], -0.3)  # decay faster than \exp(-0.3 t)
 
     def _test_linspace_spec(self, alg, outer_seed=0):
         rng = np.random.default_rng(outer_seed)
@@ -140,12 +148,10 @@ class TestSaddleSolver(unittest.TestCase):
         m, n, cond_num = 1000, 100, 1e5
         spectrum = np.linspace(cond_num ** 0.5, cond_num ** -0.5, num=n)
 
-        delta = 0.0
-        ath = make_simple_prob(m, n, spectrum, delta, rng)
+        ath = make_simple_prob(m, n, spectrum, 0.0, rng)
         self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
 
-        delta = 1.0
-        ath = make_simple_prob(m, n, spectrum, delta, rng)
+        ath = make_simple_prob(m, n, spectrum, 0.5, rng)
         self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
 
     def _test_logspace_spec(self, alg, outer_seed=0):
@@ -157,7 +163,7 @@ class TestSaddleSolver(unittest.TestCase):
         ath = make_simple_prob(m, n, spec, 0.0, rng)
         self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
 
-        ath = make_simple_prob(m, n, spec, 1.0, rng)
+        ath = make_simple_prob(m, n, spec, 0.5, rng)
         self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
 
     def _test_higher_accuracy(self, alg, outer_seed=0):
@@ -198,7 +204,6 @@ class TestSPS1(TestSaddleSolver):
 
 
 class TestSPS2(TestSaddleSolver):
-    #TODO: add tests that check logging
     
     @staticmethod
     def default_config():

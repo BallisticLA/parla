@@ -13,7 +13,7 @@ NoneType = type(None)
 
 class SaddleSolver:
 
-    def __call__(self, A, b, c, delta, tol, iter_lim, rng):
+    def __call__(self, A, b, c, delta, tol, iter_lim, rng, logging):
         raise NotImplementedError()
 
 
