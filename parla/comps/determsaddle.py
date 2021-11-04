@@ -10,33 +10,67 @@ from parla.comps.preconditioning import a_times_inv_r, a_times_m
 class PrecondSaddleSolver:
 
     def __call__(self, A, b, c, delta, tol, iter_lim, R, upper_tri, z0):
-        """TODO: update docstring for saddle point system.
-        Run preconditioned LSQR to obtain an approximate solution to
-            min{ || A @ x - b ||_2 : x in R^n }
-        where A.shape = (m, n) has m >> n, so the problem is over-determined.
+        """
+        The problem data (A, b, c, delta) define a block linear system
+
+             [  I   |     A   ] [y_opt] = [b]           (*)
+             [  A'  | -delta*I] [x_opt]   [c].
+
+        The matrix A is m-by-n and tall, b and c are vectors, and delta is >= 0.
+        This method produces (x_approx, y_approx) that approximate (x_opt, y_opt).
+
+        This method uses some iterative algorithm with tol and iter_lim as
+        termination criteria. The meaning of tol is implementation-dependent.
+
+        The underlying iterative algorithm uses R as a preconditioner and
+        initializes x_approx based on the pair (R, z0).
+
+            If upper_tri is True, then we expect that the condition number of
+            A_{pc} := (A R^{-1}) isn't large, and we initialize x_approx = R^{-1} z0.
+
+            If upper_tri is False, then we expect that the condition number of
+            A_{pc} := (A R) is not large and we initialize x_approx = R z0.
 
         Parameters
         ----------
         A : ndarray
             Data matrix with m rows and n columns.
         b : ndarray
-            Right-hand-side. b.shape = (m,) or b.shape = (m, k).
+            Upper block in the right-hand-side. b.shape = (m,).
         c : ndarray
-            ....
+            The lower block the right-hand-side. c.shape = (n,).
         delta : float
-            ...
+            Nonnegative regularization parameter.
         tol : float
-            Must be positive. Stopping criteria for LSQR.
+            Used as stopping criteria.
         iter_lim : int
-            Must be positive. Stopping criteria for LSQR.
+            An upper-bound on the number of steps the iterative algorithm
+            is allowed to take.
         R : ndarray
             Defines the preconditioner, has R.shape = (n, n).
         upper_tri : bool
-            If upper_tri is True, then precondition by M = inv(R).
+            If upper_tri is True, then precondition by M = R^{-1}.
             If upper_tri is False, then precondition by M = R.
         z0 : Union[None, ndarray]
             If provided, use as an initial approximate solution to (Ap'Ap) x = Ap' b,
-            where Ap = A @ M is the preconditioned version of A.
+            where Ap = A M is the preconditioned version of A.
+
+        Returns
+        -------
+        x_approx : ndarray
+            Has size (n,).
+        y_approx : ndarray
+            Has size (m,). Usually set to y := b - A x_approx, which solves the
+            upper block of equations in (*).
+        errors : ndarray
+            errors[i] is some error metric of (x_approx, y_approx) at iteration i
+            of the algorithm. The algorithm took errors.size steps.
+
+        Notes
+        -----
+        The following characterization holds for x_opt in (*):
+            (A' A + delta * I) x_opt = A'b - c.
+        We call that system the "normal equations".
         """
         raise NotImplementedError()
 
@@ -100,6 +134,7 @@ class PcSS2(PrecondSaddleSolver):
 
     ERROR_METRIC_INFO = """
         2-norm of the residual from the preconditioned normal equations
+        (preconditioning on the left and right).
     """
 
     def __call__(self, A, b, c, delta, tol, iter_lim, R, upper_tri, z0):

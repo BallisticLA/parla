@@ -145,7 +145,7 @@ class CURDecomposition:
         Return (J, U, I) where
             C = A[:, J] has k columns,
             R = A[I, :] has k rows,
-            U is a linear operator that applies A[Is, Js]^{-1}B
+            U is an ndarray or LinearOperator
         so that
             A \approx C @ U @ R.
 
