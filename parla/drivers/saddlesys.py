@@ -1,7 +1,7 @@
 import scipy.linalg as la
 import numpy as np
 from typing import Union
-import parla.comps.itersaddle as ris
+import parla.comps.determiter.saddle as dsad
 import parla.comps.preconditioning as rpc
 from parla.drivers.least_squares import dim_checks
 from parla.comps.determiter.logging import SketchAndPrecondLog
@@ -21,11 +21,11 @@ class SPS1(SaddleSolver):
 
     def __init__(self, sketch_op_gen,
                  sampling_factor: int,
-                 iterative_solver: Union[NoneType, ris.PrecondSaddleSolver]):
+                 iterative_solver: Union[NoneType, dsad.PrecondSaddleSolver]):
         self.sketch_op_gen = sketch_op_gen
         self.sampling_factor = sampling_factor
         if iterative_solver is None:
-            iterative_solver = ris.PcSS1()
+            iterative_solver = dsad.PcSS1()
         self.iterative_solver = iterative_solver
         pass
 
@@ -90,11 +90,11 @@ class SPS2(SaddleSolver):
 
     def __init__(self, sketch_op_gen,
                  sampling_factor: int,
-                 iterative_solver: Union[NoneType, ris.PrecondSaddleSolver]):
+                 iterative_solver: Union[NoneType, dsad.PrecondSaddleSolver]):
         self.sketch_op_gen = sketch_op_gen
         self.sampling_factor = sampling_factor
         if iterative_solver is None:
-            iterative_solver = ris.PcSS2()
+            iterative_solver = dsad.PcSS2()
         self.iterative_solver = iterative_solver
         pass
 

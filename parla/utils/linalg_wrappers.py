@@ -22,3 +22,15 @@ def lup(M):
     """Factor M = L @ U @ P"""
     P, L, U = la.lu(M.T)
     return U.T, L.T, P.T
+
+
+def apply_pinv_on_left(target, operator):
+    """return res = pinv(operator) @ target"""
+    res = la.lstsq(operator, target)[0]
+    return res
+
+
+def apply_pinv_on_right(target, operator):
+    """return res = target @ pinv(operator)"""
+    res = la.lstsq(operator.T, target.T)[0].T
+    return res

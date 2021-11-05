@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 import scipy.linalg as la
 from parla.drivers.saddlesys import SPS1, SPS2, SaddleSolver
-import parla.comps.itersaddle as itersad
+import parla.comps.determiter.saddle as dsad
 import parla.utils.sketching as usk
 import parla.utils.stats as ustats
 import parla.comps.sketchers.oblivious as oblivious
@@ -38,6 +38,14 @@ def make_simple_prob(m, n, spectrum, delta, rng):
         x_opt = la.lstsq(gram, rhs)[0]
 
     y_opt = b - A @ x_opt
+
+    """
+    # Alternatively, could set (b, c) as a function of predetermined (x, y).
+    x = rng.standard_normal(n)
+    y = rng.standard_normal(m)
+    b = y + A @ x
+    c = A.T @ y - delta * x
+    """
 
     # Return
     ath = AlgTestHelper(A, spectrum, b, c, delta, x_opt, y_opt)
@@ -141,6 +149,7 @@ class TestSaddleSolver(unittest.TestCase):
                                                log.errors[1:])
                 self.assertGreaterEqual(r2, 0.95)  # linear convergence
                 self.assertLess(fit[1], -0.3)  # decay faster than \exp(-0.3 t)
+                pass
 
     def _test_linspace_spec(self, alg, outer_seed=0):
         rng = np.random.default_rng(outer_seed)
@@ -186,7 +195,7 @@ class TestSPS1(TestSaddleSolver):
         alg = SPS1(
             sketch_op_gen=oblivious.SkOpSJ(),
             sampling_factor=3,
-            iterative_solver=itersad.PcSS1()
+            iterative_solver=dsad.PcSS1()
         )
         return alg
 
@@ -210,7 +219,7 @@ class TestSPS2(TestSaddleSolver):
         alg = SPS2(
             sketch_op_gen=oblivious.SkOpSJ(),
             sampling_factor=3,
-            iterative_solver=itersad.PcSS2()
+            iterative_solver=dsad.PcSS2()
         )
         return alg
 

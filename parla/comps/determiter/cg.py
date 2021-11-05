@@ -107,7 +107,7 @@ def cg(A, b, x0=None, tol=1e-5, maxiter=None, M=None, callback=None, atol=None):
     if maxiter is None:
         maxiter = n*10
 
-    #log = []
+    log = []
 
     matvec = A.matvec
     psolve = M.matvec
@@ -129,12 +129,11 @@ def cg(A, b, x0=None, tol=1e-5, maxiter=None, M=None, callback=None, atol=None):
     ftflag = True
     iter_ = maxiter
     residuals = -np.ones(maxiter + 1)
-    residuals[0] = np.linalg.norm(b)
     while True:
         olditer = iter_
         x, iter_, resid, info, ndx1, ndx2, sclr1, sclr2, ijob = \
            revcom(b, x, work, iter_, resid, info, ndx1, ndx2, ijob)
-        # log.append((iter_, resid, info, ndx1, ndx2, sclr1, sclr2, ijob))
+        log.append((iter_, resid, info, ndx1, ndx2, sclr1, sclr2, ijob))
         if callback is not None and iter_ > olditer:
             callback(x)
         slice1 = slice(ndx1-1, ndx1-1+n)
@@ -148,7 +147,7 @@ def cg(A, b, x0=None, tol=1e-5, maxiter=None, M=None, callback=None, atol=None):
             work[slice2] += sclr1*matvec(work[slice1])
         elif (ijob == 2):
             work[slice1] = psolve(work[slice2])
-            residuals[iter_] = resid
+            residuals[iter_ - 1] = resid
         elif (ijob == 3):
             work[slice2] *= sclr2
             work[slice2] += sclr1*matvec(x)
@@ -169,4 +168,8 @@ def cg(A, b, x0=None, tol=1e-5, maxiter=None, M=None, callback=None, atol=None):
         info = iter_
 
     residuals = residuals[residuals > -1]
+    if x0 is None:
+        residuals[0] = np.linalg.norm(b)
+    else:
+        residuals[0] = np.linalg.norm(matvec(x0) - b)
     return postprocess(x), info, residuals

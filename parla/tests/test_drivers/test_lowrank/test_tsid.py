@@ -30,11 +30,12 @@ class TestTSIDs(unittest.TestCase):
         osid = OSID1(rso)
         alg = TSID1(osid)
         m, n = 1000, 300
-        # Row IDs
+        # Algorithm will start with a row ID
         run_tsid_test(alg, m, n, rank=290, k=290, over=0,  test_tol=1e-12, seed=0)
         run_tsid_test(alg, m, n, rank=290, k=290, over=5,  test_tol=1e-12, seed=2)
         run_tsid_test(alg, m, n, rank=30, k=30, over=0,  test_tol=1e-12, seed=2)
-        # Column IDs
+        # Algorithm will start with a column ID
+        m, n = 300, 1000
         run_tsid_test(alg, m, n, rank=290, k=290, over=0, test_tol=1e-12, seed=0)
         run_tsid_test(alg, m, n, rank=290, k=290, over=5, test_tol=1e-12, seed=2)
         run_tsid_test(alg, m, n, rank=30, k=30, over=0, test_tol=1e-12, seed=2)

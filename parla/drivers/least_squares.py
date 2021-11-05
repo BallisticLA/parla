@@ -7,7 +7,7 @@ import warnings
 import scipy.linalg as la
 import numpy as np
 import parla.comps.preconditioning as rpc
-import parla.comps.itersaddle as ris
+import parla.comps.determiter.saddle as dsad
 from parla.utils.timing import fast_timer
 from parla.comps.determiter.logging import SketchAndPrecondLog
 
@@ -184,7 +184,7 @@ class SPO1(OverLstsqSolver):
         self.sketch_op_gen = sketch_op_gen
         self.sampling_factor = sampling_factor
         self.smart_init = smart_init
-        self.iterative_solver = ris.PcSS2()  # LSQR
+        self.iterative_solver = dsad.PcSS2()  # LSQR
 
     def __call__(self, A, b, delta, tol, iter_lim, rng, logging=False):
         n_rows, n_cols = A.shape
@@ -273,7 +273,7 @@ class SPO3(OverLstsqSolver):
     def __init__(self, sketch_op_gen, sampling_factor: int):
         self.sketch_op_gen = sketch_op_gen
         self.sampling_factor = sampling_factor
-        self.iterative_solver = ris.PcSS2()  # implements LSQR
+        self.iterative_solver = dsad.PcSS2()  # implements LSQR
 
     def __call__(self, A, b, delta, tol, iter_lim, rng, logging=False):
         n_rows, n_cols = A.shape
@@ -352,7 +352,7 @@ class SPU1(UnderLstsqSolver):
     def __init__(self, sketch_op_gen, sampling_factor: int):
         self.sketch_op_gen = sketch_op_gen
         self.sampling_factor = sampling_factor
-        self.iterative_solver = ris.PcSS2()  # implements LSQR
+        self.iterative_solver = dsad.PcSS2()  # implements LSQR
 
     def __call__(self, A, c, tol, iter_lim, rng, logging=False):
         """TODO: write docstring"""

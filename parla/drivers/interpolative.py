@@ -4,6 +4,7 @@ from scipy.sparse.linalg import LinearOperator
 from parla.comps.interpolative import RowOrColSelection
 from parla.comps.sketchers.aware import RowSketcher
 import parla.comps.interpolative as id_comps
+import parla.utils.linalg_wrappers as ulaw
 
 
 class OneSidedID:
@@ -78,10 +79,9 @@ class OSID2(OneSidedID):
             # Row ID
             Sk = self.sk_op(A, k + over, rng)
             Y = A @ Sk
-            _, _, I = la.qr(Y.T, mode='economic', pivoting=True)
-            Is = I[:k]
-            res = la.lstsq(A[Is, :].T, A.T)  # res[0] = pinv(A[Is,:].T) @ A.T
-            X = res[0].T  # X = A @ pinv(A[Is, :])
+            _, _, Is = la.qr(Y.T, mode='economic', pivoting=True)
+            Is = Is[:k]
+            X = ulaw.apply_pinv_on_right(A, A[Is, :])
             return X, Is
         elif axis == 1:
             # Column ID
@@ -89,8 +89,7 @@ class OSID2(OneSidedID):
             Y = Sk @ A
             _, _, J = la.qr(Y, mode='economic', pivoting=True)
             Js = J[:k]
-            res = la.lstsq(A[:, Js], A)
-            Z = res[0]
+            Z = ulaw.apply_pinv_on_left(A, operator=A[:, Js])
             return Z, Js
         else:
             raise ValueError()
@@ -154,7 +153,7 @@ class CURDecomposition:
         raise NotImplementedError()
 
 
-class CURD1(CURDecomposition):
+class CUR1(CURDecomposition):
     """
     Use a randomized method to select k rows of A, then use
     full-rank QRCP to select k columns from the row-submatrix of A,
@@ -184,7 +183,7 @@ class CURD1(CURDecomposition):
         return Js, U, Is
 
 
-class CURD2(CURDecomposition):
+class CUR2(CURDecomposition):
 
     def __init__(self, osid: OneSidedID):
         self.osid = osid
@@ -196,7 +195,7 @@ class CURD2(CURDecomposition):
             # A \approx A[:, Js] @ X
             _, _, Is = la.qr(A[:, Js].T, mode='economic', pivoting=True)
             Is = Is[:k]
-            U = (la.lstsq(A[Is, :].T, X.T)[0]).T
+            U = ulaw.apply_pinv_on_right(X, operator=A[Is, :])
             # U = X (A[Is, :]^\dagger)
             return Js, U, Is
         else:
@@ -204,6 +203,6 @@ class CURD2(CURDecomposition):
             # A \approx Z @ A[Is, :]
             _, _, Js = la.qr(A[Is, :], mode='economic', pivoting=True)
             Js = Js[:k]
-            U = la.lstsq(A[:, Js], Z)[0]
+            U = ulaw.apply_pinv_on_left(Z, operator=A[:, Js])
             # U = A[:, Js]^\dagger Z
             return Js, U, Is
