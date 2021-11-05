@@ -261,7 +261,7 @@ class TestSPO3(TestOverLstsqSolver):
             A, its sketching operator S is of shape (sampling_factor * n)-by-m.
     """
 
-    def test_srct(self):
+    def test_srct_qr(self):
         sap = rlsq.SPO3(oblivious.SkOpTC(), sampling_factor=2)
         ath = inconsistent_gen()
         self._test_convergence_rate(ath, sap, ridge=False)
@@ -270,7 +270,7 @@ class TestSPO3(TestOverLstsqSolver):
         self._test_convergence_rate(ath, sap, ridge=False)
         pass
 
-    def test_gaussian(self):
+    def test_gaussian_qr(self):
         sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=2)
         ath = inconsistent_gen()
         self._test_convergence_rate(ath, sap, ridge=False)
@@ -279,7 +279,7 @@ class TestSPO3(TestOverLstsqSolver):
         self._test_convergence_rate(ath, sap, ridge=False)
         pass
 
-    def test_sjlt(self):
+    def test_sjlt_qr(self):
         sap = rlsq.SPO3(oblivious.SkOpSJ(vec_nnz=8), sampling_factor=2)
         ath = inconsistent_gen()
         self._test_convergence_rate(ath, sap, ridge=False)
@@ -288,24 +288,72 @@ class TestSPO3(TestOverLstsqSolver):
         self._test_convergence_rate(ath, sap, ridge=False)
         pass
 
-    def test_consistent_tall(self):
+    def test_consistent_tall_qr(self):
         ath = consistent_tall()
         sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=1)
         self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
 
-    def test_consistent_square(self):
+    def test_consistent_square_qr(self):
         ath = consistent_square()
         sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=1)
         self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
 
-    def test_inconsistent_orth(self):
+    def test_inconsistent_orth_qr(self):
         ath = inconsistent_orthog()
         sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=3)
         self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
 
-    def test_inconsistent_gen(self):
+    def test_inconsistent_gen_qr(self):
         ath = inconsistent_gen()
         sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=3)
+        self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
+
+    def test_srct_chol(self):
+        sap = rlsq.SPO3(oblivious.SkOpTC(), sampling_factor=2, mode='chol')
+        ath = inconsistent_gen()
+        self._test_convergence_rate(ath, sap, ridge=False)
+        self._test_convergence_rate(ath, sap, ridge=True)
+        ath = inconsistent_stackid()
+        self._test_convergence_rate(ath, sap, ridge=False)
+        pass
+
+    def test_gaussian_chol(self):
+        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=2, mode='chol')
+        ath = inconsistent_gen()
+        self._test_convergence_rate(ath, sap, ridge=False)
+        self._test_convergence_rate(ath, sap, ridge=True)
+        ath = inconsistent_stackid()
+        self._test_convergence_rate(ath, sap, ridge=False)
+        pass
+
+    def test_sjlt_chol(self):
+        sap = rlsq.SPO3(oblivious.SkOpSJ(vec_nnz=8), sampling_factor=2, mode='chol')
+        ath = inconsistent_gen()
+        self._test_convergence_rate(ath, sap, ridge=False)
+        self._test_convergence_rate(ath, sap, ridge=True)
+        ath = inconsistent_stackid()
+        self._test_convergence_rate(ath, sap, ridge=False)
+        pass
+
+    def test_consistent_tall_chol(self):
+        ath = consistent_tall()
+        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=1, mode='chol')
+        self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
+
+    def test_consistent_square_chol(self):
+        ath = consistent_square()
+        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=1, mode='chol')
+        self.run_consistent(ath, sap, 0.0, 1, 1e-10, self.SEEDS)
+        # ^ Slightly lower tolerance than consistent_tall_chol
+
+    def test_inconsistent_orth_chol(self):
+        ath = inconsistent_orthog()
+        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=3, mode='chol')
+        self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
+
+    def test_inconsistent_gen_chol(self):
+        ath = inconsistent_gen()
+        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=3, mode='chol')
         self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
 
 

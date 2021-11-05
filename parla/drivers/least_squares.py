@@ -237,8 +237,8 @@ class SPO1(OverLstsqSolver):
 
 class SPO3(OverLstsqSolver):
     """A sketch-and-precondition approach to overdetermined ordinary least
-    squares. This implementation uses QR to obtain the preconditioner and
-    it uses LSQR for the iterative method.
+    squares. This implementation uses QR or Cholesky to obtain the preconditioner
+    and it uses LSQR for the iterative method.
 
     Before starting LSQR, we run a basic sketch-and-solve (for free, given
     our QR decomposition of the sketched data matrix) to obtain a solution
@@ -268,11 +268,16 @@ class SPO3(OverLstsqSolver):
         (5) We initialize the iterative solver (LSQR) at the better of the two
             solutions given by either the zero vector or the output of
             sketch-and-solve.
+
+        (6) We let the user choose whether the upper-triangular preconditioner
+            is obtained by QR or Cholesky. (They are equivalent in exact
+            arithmetic but have different numerical profiles.)
     """
 
-    def __init__(self, sketch_op_gen, sampling_factor: int):
+    def __init__(self, sketch_op_gen, sampling_factor: int, mode='qr'):
         self.sketch_op_gen = sketch_op_gen
         self.sampling_factor = sampling_factor
+        self.mode = mode
         self.iterative_solver = dsad.PcSS2()  # implements LSQR
 
     def __call__(self, A, b, delta, tol, iter_lim, rng, logging=False):
@@ -292,15 +297,29 @@ class SPO3(OverLstsqSolver):
 
         # Factor the sketch
         tic = quick_time()
-        if delta > 0:
-            A_ske = np.vstack((A_ske, sqrt_delta * np.eye(n_cols)))
-        Q, R = la.qr(A_ske, overwrite_a=True, mode='economic')
+        if self.mode == 'qr':
+            if delta > 0:
+                A_ske = np.vstack((A_ske, sqrt_delta * np.eye(n_cols)))
+            Q, R = la.qr(A_ske, overwrite_a=True, mode='economic')
+        elif self.mode == 'chol':
+            G = np.eye(n_cols)
+            G = la.blas.dsyrk(1.0, A_ske, beta=delta, c=G, trans=1, lower=False,
+                              overwrite_c=True)
+            rows, cols = np.triu_indices(n_cols)
+            G[cols, rows] = G[rows, cols]
+            R = la.cholesky(G, overwrite_a=True, check_finite=False)
+            Q = None
+        else:
+            raise ValueError()
         log.time_factor = quick_time() - tic
 
         # Sketch-and-solve type preprocessing
         tic = quick_time()
         b_ske = S @ b
-        z_ske = Q[:d, :].T @ b_ske
+        if Q is not None:
+            z_ske = Q[:d, :].T @ b_ske
+        else:
+            z_ske = la.solve_triangular(R, A_ske.T @ b_ske, lower=False, trans='T')
         x_ske = la.solve_triangular(R, z_ske, lower=False)
         r = A @ x_ske - b
         if delta > 0:

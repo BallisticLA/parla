@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import scipy.linalg as la
-from parla.drivers.interpolative import CUR1, CUR2, OSID1
+from parla.drivers.interpolative import CUR2, CUR1, OSID1
 from parla.comps.interpolative import ROCS1
 from parla.comps.sketchers.aware import RS1
 import parla.comps.sketchers.oblivious as oblivious
@@ -31,6 +31,7 @@ class TestCURDecomposition(unittest.TestCase):
         run_cur_test(alg, m, n, rank=5, k=5, over=1, test_tol=1e-12, seed=2)
 
     def _test_simple_approx(self, alg):
+        # Tolerances are set so that CUR2 can pass.
         m, n = 100, 30
         run_cur_test(alg, m, n, rank=30, k=27, over=3, test_tol=0.1, seed=0)
         run_cur_test(alg, m, n, rank=30, k=25, over=4, test_tol=0.1, seed=0)
@@ -42,11 +43,12 @@ class TestCURDecomposition(unittest.TestCase):
         run_cur_test(alg, m, n, rank=30, k=5, over=5, test_tol=0.35, seed=0)
 
 
-class TestCURD1(TestCURDecomposition):
+class TestCUR1(TestCURDecomposition):
+    # This algorithm gets better approximation error than CUR2.
 
     def test_simple_exact(self):
         gaussian_operator = oblivious.SkOpGA()
-        alg = CUR1(ROCS1(RS1(
+        alg = CUR1(OSID1(RS1(
             sketch_op_gen=gaussian_operator,
             num_pass=0,
             stabilizer=ulaw.orth,
@@ -56,7 +58,7 @@ class TestCURD1(TestCURDecomposition):
 
     def test_simple_approx(self):
         gaussian_operator = oblivious.SkOpGA()
-        alg = CUR1(ROCS1(RS1(
+        alg = CUR1(OSID1(RS1(
             sketch_op_gen=gaussian_operator,
             num_pass=4,
             stabilizer=ulaw.orth,
@@ -65,12 +67,11 @@ class TestCURD1(TestCURDecomposition):
         self._test_simple_approx(alg)
 
 
-class TestCURD2(TestCURDecomposition):
-    # This algorithm gets better approximation error than CUR1.
+class TestCUR2(TestCURDecomposition):
 
     def test_simple_exact(self):
         gaussian_operator = oblivious.SkOpGA()
-        alg = CUR2(OSID1(RS1(
+        alg = CUR2(ROCS1(RS1(
             sketch_op_gen=gaussian_operator,
             num_pass=0,
             stabilizer=ulaw.orth,
@@ -80,10 +81,11 @@ class TestCURD2(TestCURDecomposition):
 
     def test_simple_approx(self):
         gaussian_operator = oblivious.SkOpGA()
-        alg = CUR2(OSID1(RS1(
+        alg = CUR2(ROCS1(RS1(
             sketch_op_gen=gaussian_operator,
             num_pass=4,
             stabilizer=ulaw.orth,
             passes_per_stab=1
         )))
         self._test_simple_approx(alg)
+
