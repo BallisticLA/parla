@@ -1,7 +1,6 @@
 """
-Routines for (approximately) solving over-determined least squares problems
-
-    min{ || A x - b ||_2 + reg || x ||_2 : x in R^n }.
+Routines for (approximately) solving strongly overdetermined or strongly
+underdetermined least squares problems.
 """
 import warnings
 import scipy.linalg as la
@@ -352,12 +351,20 @@ class UnderLstsqSolver:
 
 class SPU1(UnderLstsqSolver):
     """
-    SVD-based sketch-and-precondition for underdetermined least squares
+    SVD-based sketch-and-precondition for underdetermined least squares.
+    We parameterize underdetermined least squares with a tall m-by-n
+    data matrix A and an n-vector c. In full generality, this algorithm
+    finds an m-vector y that approximately minimizes
+
+        ||y - pinv(A') c||_2.
+
+    If the solution is computed to high accuracy, then it will solve
 
         min ||y||
-        s.t. A' y = c
+        s.t. A' y = c.
 
-    where A is tall.
+    If the solution is computed to low accuracy, then the equality
+    constraint "A' y = c" might be violated by a large margin.
 
     #TODO: write proper docstring
     """
