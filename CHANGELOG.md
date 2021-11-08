@@ -4,12 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-# [0.1.2] - working version
+# [0.1.3] - working version
+
+# [0.1.2] - superseded on Nov 7, 2021
+## Added
+ - drivers: CUR in the style of VM2015 (CUR1)
 ## Changed
  - Package name changes from rlapy to parla.
+ - drivers: CURD1 is now CUR2.
+ - drivers: SPO3 defaults to obtaining the preconditioner by QR, but has the option of using Cholesky.
 
-
-# [0.1.1] - superceded on Nov 3, 2021
+# [0.1.1] - superseded on Nov 3, 2021
 ## Added
  - drivers: Sketch-and-Precondition for Saddle point systems (SPS1, SPS2, name used in design doc)
  - drivers: QB-backed eigenvalue decomposition (EVD1)

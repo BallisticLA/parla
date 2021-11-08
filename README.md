@@ -1,8 +1,21 @@
-# PARLA
-This is a Python package for prototyping the *mathematical* structure of a future C++ library for randomized linear algebra.
+# Python Algorithms for Randomized Linear Algebra (PARLA)
+
+PARLA is a Python package for prototyping the *mathematical* structure of a future C++ library for randomized numerical linear algebra.
+The future library is meant to be "LAPACK-like" and will its functionality into high-level "drivers" and lower-level "computational routines".
+
+The main difference between PARLA and LAPACK (aside from LAPACK being written in Fortran!) is that PARLA defines
+algorithms in an object-oriented way.
+This approach makes it easy to modify a driver's implementation by overriding the default implementation of some constituent computational routine.
+All driver-level functionality has passed basic tests.
+We're actively developing the testing framework and improving documentation.
+
+PARLA has a companion Matlab library called [MARLA](https://github.com/BallisticLA/marla).
+MARLA has a purely procedural design and isn't meant to be as general as PARLA.
+We're in the process of standardizing a procedural API that's consistent across these two libraries.
+The state of PARLA and MARLA's APIs and unit tests is summarized in [this Google Sheets spreadsheet](https://docs.google.com/spreadsheets/d/15vIS5wkaVB5lUoVQZqg7J_2qsK04ycVN47Mo2LuIKAo/edit?usp=sharing).
+(It will be hard to read that spreadsheet without having the RandLAPACK design document on-hand.)
+
 There are no plans to distribute this Python package through PyPI or conda.
-An analogous Matlab library can be found [here](https://github.com/TeachRaccooon/Templates-for-Randomized-Numerical-Linear-Algebra/).
-The Matlab library is not quite as general as this Python package.
 
 ## How to install
 The following detailed instructions assume you have Git available from the command line.

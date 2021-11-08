@@ -2,10 +2,10 @@ import setuptools
 
 setuptools.setup(
     name='parla',
-    version='0.1.2',
+    version='0.1.3',
     author='',
-    url='https://github.com/rileyjmurray/rlapy',
-    author_email='',
+    url='https://github.com/BallisticLA/parla',
+    author_email='rjmurray@berkeley.edu',
     description='Python Algorithms for Randomized Linear Algebra',
     packages=setuptools.find_packages(),
     classifiers=[
