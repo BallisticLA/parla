@@ -1,7 +1,7 @@
 # Python Algorithms for Randomized Linear Algebra (PARLA)
 
 PARLA is a Python package for prototyping the *mathematical* structure of a future C++ library for randomized numerical linear algebra.
-The future library is meant to be "LAPACK-like" and will its functionality into high-level "drivers" and lower-level "computational routines".
+The future library is meant to be "LAPACK-like" and will organize its functionality into high-level "drivers" and lower-level "computational routines".
 
 The main difference between PARLA and LAPACK (aside from LAPACK being written in Fortran!) is that PARLA defines
 algorithms in an object-oriented way.
