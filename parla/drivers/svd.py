@@ -95,7 +95,7 @@ class SVD1(SVDecomposer):
             U = U[:, :cutoff]
             s = s[:cutoff]
             Vh = Vh[:cutoff, :]
-        drop = s < np.finfo(float).eps
+        drop = s < 10*np.finfo(float).eps
         if np.any(drop):
             U = U[:, ~drop]
             s = s[~drop]

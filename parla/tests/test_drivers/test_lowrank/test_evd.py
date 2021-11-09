@@ -9,19 +9,21 @@ import parla.utils.linalg_wrappers as ulaw
 import parla.tests.test_comps.test_qb as test_qb
 
 
-class AlgTestHelper:
+class EigTestHelper:
 
     @staticmethod
     def convert(ath, psd, rng: np.random.Generator):
         if psd:
             lamb = ath.s
         else:
-            signs = rng.random(ath.s.size) < 0.5
-            signs[~signs] = -1
+            #signs = rng.random(ath.s.size) < 0.5
+            signs = rng.random(ath.s.size)
+            signs[signs < 0.5] = -1.0
+            signs[signs > 0] = 1.0
             lamb = ath.s * signs
         V = ath.U
         A = (V * lamb) @ V.T
-        return AlgTestHelper(A, V, lamb)
+        return EigTestHelper(A, V, lamb)
 
     def __init__(self, A, V, lamb):
         self.A = A
@@ -46,8 +48,8 @@ class AlgTestHelper:
     def test_eigvals(self, psd):
         lamb = self.Vlamb[1]
         self.tester.assertLessEqual(lamb.size, self.lamb.size)
-        lamb_rev = lamb[::-1]
-        diffs = np.diff(lamb_rev)
+        abslamb_rev = np.abs(lamb)[::-1]
+        diffs = np.diff(abslamb_rev)
         self.tester.assertGreaterEqual(np.min(diffs), 0.0)
         if psd:
             self.tester.assertGreaterEqual(np.min(lamb), 0.0)
@@ -69,26 +71,21 @@ class TestEVDecomposer(unittest.TestCase):
 
     PSD = False
 
-    INFLATE_TEST_TOL = 1.1
-
     @staticmethod
-    def run_batch(ath: AlgTestHelper,
+    def run_batch(ath: EigTestHelper,
                   alg: revd.EVDecomposer,
                   target_rank, target_tol, over,
                   test_tol, seeds):
         for seed in seeds:
             rng = np.random.default_rng(seed)
-            # Call the SVD algorithm, store the results in AlgTestHelper
+            # Call the SVD algorithm, store the results in EigTestHelper
             ath.Vlamb = alg(ath.A, target_rank, target_tol, over, rng)
             # Test the results
             ath.test_conformable()
             ath.test_eigvals(TestEVDecomposer.PSD)
             ath.test_valid_onb(test_tol)
             if not np.isnan(target_tol):
-                # slightly inflate the tolerance to account for minor
-                # numerical issues.
-                abstol = TestEVDecomposer.INFLATE_TEST_TOL * target_tol
-                ath.test_abs_fro_error(abstol)
+                ath.test_abs_fro_error(target_tol)
 
 
 class TestEVD1(TestEVDecomposer):
@@ -110,7 +107,7 @@ class TestEVD1(TestEVDecomposer):
                     passes_per_stab=1
         ))))
         rng = np.random.default_rng(0)
-        ath = AlgTestHelper.convert(test_qb.wide_low_exact_rank(), self.PSD, rng)
+        ath = EigTestHelper.convert(test_qb.wide_low_exact_rank(), self.PSD, rng)
         rank = ath.lamb.size
         self.run_batch(ath, alg, rank - 10, np.NaN, 0, 1e-8, self.SEEDS)
         self.run_batch(ath, alg, rank - 10, np.NaN, 5, 1e-8, self.SEEDS)
@@ -132,7 +129,7 @@ class TestEVD1(TestEVDecomposer):
         #TODO: update tests so that we can verify the returned matrix
         #   has rank < min(A.shape).
         rng = np.random.default_rng(0)
-        ath = AlgTestHelper.convert(test_qb.wide_full_exact_rank(), self.PSD, rng)
+        ath = EigTestHelper.convert(test_qb.wide_full_exact_rank(), self.PSD, rng)
         rank = min(ath.A.shape)
         abs_err = 0.25*la.norm(ath.lamb, ord=2)
         self.run_batch(ath, alg, rank, abs_err, 0, 1e-8, self.SEEDS)
@@ -153,7 +150,7 @@ class TestEVD1(TestEVDecomposer):
         ))
         # Wide matrix
         rng = np.random.default_rng(0)
-        ath = AlgTestHelper.convert(test_qb.wide_low_exact_rank(), self.PSD, rng)
+        ath = EigTestHelper.convert(test_qb.wide_low_exact_rank(), self.PSD, rng)
         rank = min(ath.A.shape)
         abs_err = 1e-12*la.norm(ath.lamb, ord=2)
         self.run_batch(ath, alg, rank, abs_err, 0, 1e-8, self.SEEDS)
@@ -182,7 +179,7 @@ class TestEVD2(TestEVDecomposer):
                 passes_per_stab=1
         ))
         rng = np.random.default_rng(0)
-        ath = AlgTestHelper.convert(test_qb.wide_low_exact_rank(), self.PSD, rng)
+        ath = EigTestHelper.convert(test_qb.wide_low_exact_rank(), self.PSD, rng)
         rank = ath.lamb.size
         self.run_batch(ath, alg, rank - 10, np.NaN, 0, 1e-8, self.SEEDS)
         self.run_batch(ath, alg, rank - 10, np.NaN, 5, 1e-8, self.SEEDS)
