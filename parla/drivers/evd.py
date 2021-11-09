@@ -348,7 +348,8 @@ class EVD2(EVDecomposer):
             (available at `arXiv <https://arxiv.org/abs/1706.05736>`_).
         """
         assert k > 0
-        assert k < min(A.shape)
+        n = A.shape[0]
+        assert k < n
         if not np.isnan(tol):
             msg = """
             This EVDecomposer implementation cannot directly control
@@ -357,7 +358,6 @@ class EVD2(EVDecomposer):
             warnings.warn(msg)
         rng = np.random.default_rng(rng)
         S = self.sk_op(A, k + over, rng)
-        n = A.shape[0]
         Y = A @ S
         epsilon_mach = np.finfo(float).eps
         nu = np.sqrt(n) * epsilon_mach * la.norm(Y)
@@ -370,7 +370,7 @@ class EVD2(EVDecomposer):
         V, sigma, Wh = la.svd(B)
         
         comp_list = [k]
-        for i in range(min(k, n)-1):
+        for i in range(k-1):
             if sigma[(i+1)]**2 <= nu:
                 comp_list.append(i)
         r = min(comp_list)
