@@ -7,6 +7,7 @@ from parla.comps.sketchers.aware import RS1
 import parla.comps.sketchers.oblivious as oblivious
 import parla.utils.linalg_wrappers as ulaw
 import parla.tests.matmakers as matmakers
+from parla.tests.test_drivers.test_lowrank.test_osid import reference_osid
 
 
 def run_cur_test(alg, m, n, rank, k, over, test_tol, seed):
@@ -14,9 +15,17 @@ def run_cur_test(alg, m, n, rank, k, over, test_tol, seed):
     A = matmakers.rand_low_rank(m, n, rank, rng)
     Js, U, Is = alg(A, k, over, rng)
     A_id = A[:, Js] @ (U @ A[Is, :])
-    U, s, Vt = la.svd(A)
-    err = (la.norm(A - A_id, ord='fro') - la.norm(s[k:])) / la.norm(s)
-    assert err < test_tol
+
+    err_rand = la.norm(A - A_id, ord='fro')
+    if test_tol < 1e-8:
+        rel_err = err_rand / la.norm(A, ord='fro')
+        assert rel_err < test_tol
+    else:
+        A_id_ref, _, _ = reference_osid(A, k, 0)
+        err_ref = la.norm(A - A_id_ref, ord='fro')
+        rel_err = (err_rand - err_ref) / la.norm(A, ord='fro')
+        print(rel_err)
+    assert rel_err < test_tol
 
 
 class TestCURDecomposition(unittest.TestCase):
