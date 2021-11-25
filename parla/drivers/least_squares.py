@@ -8,6 +8,7 @@ import numpy as np
 import parla.comps.preconditioning as rpc
 import parla.comps.determiter.saddle as dsad
 from parla.utils.timing import fast_timer
+import parla.utils.linalg_wrappers as law
 from parla.comps.determiter.logging import SketchAndPrecondLog
 
 
@@ -209,9 +210,10 @@ class SPO1(OverLstsqSolver):
 
         if self.smart_init:
             tic = quick_time()
+            Uh = law.herm_adjoint(U[:d, :])
             b_ske = S @ b
-            z_ske = U[:d, :].T @ b_ske
-            x_ske = M @ z_ske
+            z_ske = Uh @ b_ske
+            x_ske = (M @ z_ske).astype(A.dtype)
             r = b - A @ x_ske
             if delta > 0:
                 r = np.concatenate((r, sqrt_delta * x_ske))
@@ -227,9 +229,11 @@ class SPO1(OverLstsqSolver):
         x_star = res[0]
 
         if logging:
-            ar0 = M.T @ (A.T @ b)
+            Mh = law.herm_adjoint(M)
+            ar0 = Mh @ (A.T @ b)
             log.wrap_up(res[2], la.norm(ar0))
             log.error_desc = self.iterative_solver.ERROR_METRIC_INFO
+            # ^ TODO: date to allow complex-valued "A".
 
         return x_star, log
 
@@ -293,19 +297,25 @@ class SPO3(OverLstsqSolver):
         S = self.sketch_op_gen(d, n_rows, rng)
         A_ske = S @ A
         log.time_sketch = quick_time() - tic
+        b = b.astype(A_ske.dtype)
 
         # Factor the sketch
         tic = quick_time()
         if self.mode == 'qr':
             if delta > 0:
-                A_ske = np.vstack((A_ske, sqrt_delta * np.eye(n_cols)))
+                A_ske = np.vstack((A_ske,
+                                   sqrt_delta * np.eye(n_cols, dtype=A_ske.dtype)))
             Q, R = la.qr(A_ske, overwrite_a=True, mode='economic')
         elif self.mode == 'chol':
-            G = np.eye(n_cols)
-            G = la.blas.dsyrk(1.0, A_ske, beta=delta, c=G, trans=1, lower=False,
-                              overwrite_c=True)
-            rows, cols = np.triu_indices(n_cols)
-            G[cols, rows] = G[rows, cols]
+            A_skeh = law.herm_adjoint(A_ske)
+            if law.is_complex(A_skeh):
+                G = A_skeh @ A_ske
+            else:
+                G = np.eye(n_cols)
+                G = la.blas.dsyrk(1.0, A_ske, beta=delta, c=G, trans=1, lower=False,
+                                  overwrite_c=True)
+                rows, cols = np.triu_indices(n_cols)
+                G[cols, rows] = G[rows, cols]
             R = la.cholesky(G, overwrite_a=True, check_finite=False)
             Q = None
         else:
@@ -315,11 +325,13 @@ class SPO3(OverLstsqSolver):
         # Sketch-and-solve type preprocessing
         tic = quick_time()
         b_ske = S @ b
-        if Q is not None:
-            z_ske = Q[:d, :].T @ b_ske
-        else:
-            z_ske = la.solve_triangular(R, A_ske.T @ b_ske, lower=False, trans='T')
-        x_ske = la.solve_triangular(R, z_ske, lower=False)
+        Rh = law.herm_adjoint(R)
+        if self.mode == 'qr':
+            Qh = law.herm_adjoint(Q[:d, :])
+            z_ske = Qh @ b_ske
+        else:  # mode is 'chol'
+            z_ske = la.solve_triangular(Rh, A_skeh @ b_ske, lower=True)
+        x_ske = la.solve_triangular(R, z_ske, lower=False).astype(A.dtype)
         r = A @ x_ske - b
         if delta > 0:
             r = np.concatenate((r, sqrt_delta * x_ske))
@@ -334,9 +346,10 @@ class SPO3(OverLstsqSolver):
 
         if logging:
             ar0 = A.T @ b
-            ar0 = la.solve_triangular(R, ar0, 'T', lower=False, overwrite_b=True)
+            ar0 = la.solve_triangular(Rh, ar0, lower=True, overwrite_b=True)
             log.wrap_up(res[2], la.norm(ar0))
             log.error_desc = self.iterative_solver.ERROR_METRIC_INFO
+            #TODO: allow complex data matrices "A"
 
         return res[0], log
 
@@ -367,6 +380,7 @@ class SPU1(UnderLstsqSolver):
     constraint "A' y = c" might be violated by a large margin.
 
     #TODO: write proper docstring
+    #TODO: allow complex sketching operators
     """
 
     ERROR_METRIC_INFO = """

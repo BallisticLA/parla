@@ -84,6 +84,7 @@ class PcSS1(PrecondSaddleSolver):
     def __call__(self, A, b, c, delta, tol, iter_lim, R, upper_tri, z0):
         if b is None:
             b = np.zeros(A.shape[0])
+        b = b.astype(R.dtype)
         k = 1 if b.ndim == 1 else b.shape[1]
         if k != 1:
             raise NotImplementedError()
@@ -93,27 +94,35 @@ class PcSS1(PrecondSaddleSolver):
             raise NotImplementedError()
 
         # Note to Riley: refer to page 28 of your notebook
-        work1 = np.zeros(n)
-        work2 = np.zeros(A.shape[0])
+        is_complex = 'complex' in str(R.dtype)
+        work1 = np.zeros(n, dtype=R.dtype)
+        work2 = np.zeros(A.shape[0], dtype=R.dtype)
+
+        R_adj = R.T.conj() if is_complex else R.T
 
         def mv_sp(vec):
-            np.dot(R.T, vec, out=work1)
+            np.dot(R_adj, vec, out=work1)
             return R @ work1
 
         M_sp = sparla.LinearOperator(shape=(n, n),
-                                     matvec=mv_sp, rmatvec=mv_sp)
+                                     matvec=mv_sp, rmatvec=mv_sp,
+                                     dtype=R.dtype)
+
+        A_adj = A.T.conj() if is_complex else A.T
 
         def mv_gram(vec):
             np.dot(A, vec, out=work2)
-            res = A.T @ work2
+            res = A_adj @ work2
             res += delta * vec
             return res
 
         gram = sparla.LinearOperator(shape=(n, n),
-                                     matvec=mv_gram, rmatvec=mv_gram)
+                                     matvec=mv_gram, rmatvec=mv_gram,
+                                     dtype=R.dtype)
 
-        rhs = A.T @ b
+        rhs = (A.T @ b).astype(R.dtype)
         if c is not None:
+            c = c.astype(R.dtype)
             rhs -= c
 
         if z0 is None:
@@ -122,7 +131,7 @@ class PcSS1(PrecondSaddleSolver):
             x0 = R @ z0
 
         result = cg(gram, rhs, x0, tol, iter_lim, M_sp, None, None)
-        x_star = result[0]
+        x_star = result[0].astype(A.dtype)
         y_star = b - A @ x_star
 
         result = (x_star, y_star, result[2])
@@ -149,9 +158,10 @@ class PcSS2(PrecondSaddleSolver):
         if c is None or la.norm(c) == 0:
             # Overdetermined least squares
             if delta > 0:
-                b = np.concatenate((b, np.zeros(n)))
+                b = np.concatenate((b, np.zeros(n, dtype=b.dtype)))
+            b = b.astype(A_pc.dtype)
             result = lsqr(A_pc, b, atol=tol, btol=tol, iter_lim=iter_lim, x0=z0)
-            x = M_fwd(result[0])
+            x = M_fwd(result[0]).astype(A.dtype)
             y = b[:m] - A @ x
             result = (x, y, result[7])
             return result
@@ -162,7 +172,7 @@ class PcSS2(PrecondSaddleSolver):
             result = lsqr(A_pc.T, c_pc, atol=tol, btol=tol, iter_lim=iter_lim)
             y = result[0]
             if delta > 0:
-                y = y[:m]
+                y = y[:m].astype(A.dtype)
                 x = (A.T @ y - c) / delta
             else:
                 x = np.NaN * np.empty(n)

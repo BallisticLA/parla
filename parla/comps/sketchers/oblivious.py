@@ -20,6 +20,7 @@ Names of implementation classes take the form "SkOp[XY]", where
         XY = IN: index into rows or columns
 """
 import parla.utils.sketching as usk
+import numpy as np
 
 
 class SketchOpGen:
@@ -48,11 +49,21 @@ class SkOpGA(SketchOpGen):
 class SkOpSJ(SketchOpGen):
     """Generate a sparse sketching operator, based on SJLT."""
 
-    def __init__(self, vec_nnz=8):
+    def __init__(self, vec_nnz=8, complex=False):
         self.vec_nnz = vec_nnz
+        self.complex = complex
 
     def __call__(self, n_rows, n_cols, rng):
-        return usk.sjlt_operator(n_rows, n_cols, rng, self.vec_nnz)
+        S = usk.sjlt_operator(n_rows, n_cols, rng, self.vec_nnz)
+        if not self.complex:
+            return S
+        else:
+            scales_re = rng.standard_normal((S.data.size,))
+            scales_im = rng.standard_normal((S.data.size,))
+            scales = scales_re + 1j*scales_im
+            scales /= np.abs(scales)
+            S.data = scales
+            return S
 
 
 class SkOpSS(SketchOpGen):

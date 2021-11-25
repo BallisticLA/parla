@@ -316,7 +316,7 @@ def lsqr(A, b, damp=0.0, atol=1e-8, btol=1e-8, conlim=1e8,
     m, n = A.shape
     if iter_lim is None:
         iter_lim = 2 * n
-    var = np.zeros(n)
+    var = np.zeros(n, dtype=A.dtype)
 
     msg = ('The exact solution is  x = 0                              ',
          'Ax - b is small enough, given atol, btol                  ',
@@ -362,7 +362,7 @@ def lsqr(A, b, damp=0.0, atol=1e-8, btol=1e-8, conlim=1e8,
     u = b
     bnorm = np.linalg.norm(b)
     if x0 is None:
-        x = np.zeros(n)
+        x = np.zeros(n, dtype=A.dtype)
         beta = bnorm.copy()
     else:
         x = np.asarray(x0)

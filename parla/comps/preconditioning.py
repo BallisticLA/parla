@@ -1,5 +1,6 @@
 import scipy.linalg as la
 import scipy.sparse.linalg as sparla
+import parla.utils.linalg_wrappers as law
 import numpy as np
 
 
@@ -7,7 +8,7 @@ def a_lift(A, scale):
     if scale == 0:
         return A
     else:
-        A = np.row_stack((A, scale*np.eye(A.shape[1])))
+        A = np.row_stack((A, scale*np.eye(A.shape[1], dtype=A.dtype)))
         # Explicitly augmenting A seems like overkill.
         # However, it's faster than the LinearOperator approach I tried.
         return A
@@ -35,24 +36,27 @@ def a_times_inv_r(A, delta, R, k=1):
         out = A_lift @ work
         return out
 
+    Radj = R.T.conj() if law.is_complex(R) else R.T
+
     def adjoint(arg, work):
         np.dot(A.T, arg[:m], out=work)
         if delta > 0:
             work += sqrt_delta * arg[m:]
-        out = la.solve_triangular(R, work, 'T', lower=False, check_finite=False)
+        out = la.solve_triangular(Radj, work, lower=True, check_finite=False)
         return out
 
-    vec_work = np.zeros(A.shape[1])
+    vec_work = np.zeros(A.shape[1], dtype=R.dtype)
     mv = lambda vec: forward(vec, vec_work)
     rmv = lambda vec: adjoint(vec, vec_work)
     # if k != 1 then we'd need to allocate workspace differently.
     # (And maybe use workspace differently.)
 
     A_precond = sparla.LinearOperator(shape=A_lift.shape,
-                                      matvec=mv, rmatvec=rmv)
+                                      matvec=mv, rmatvec=rmv,
+                                      dtype=R.dtype)
 
     M_fwd = lambda z: la.solve_triangular(R, z, lower=False)
-    M_adj = lambda w: la.solve_triangular(R, w, 'T', lower=False)
+    M_adj = lambda w: la.solve_triangular(Radj, w, lower=True)
 
     return A_precond, M_fwd, M_adj
 
@@ -62,6 +66,7 @@ def a_times_m(A, delta, M, k=1):
         raise NotImplementedError()
 
     sqrt_delta = np.sqrt(delta)
+    A = A.astype(M.dtype)
     A_lift = a_lift(A, sqrt_delta)
     m = A.shape[0]
 
@@ -70,23 +75,28 @@ def a_times_m(A, delta, M, k=1):
         out = A_lift @ work
         return out
 
+    is_complex = law.is_complex(M)
+    M_adjmat = M.T.conj() if is_complex else M.T
+    A_adj = A.T.conj() if is_complex else A.T
+
     def adjoint(arg, work):
-        np.dot(A.T, arg[:m], out=work)
+        np.dot(A_adj, arg[:m], out=work)
         if delta > 0:
             work += sqrt_delta * arg[m:]
-        return M.T @ work
+        return M_adjmat @ work
 
-    vec_work = np.zeros(A.shape[1])
+    vec_work = np.zeros(A.shape[1], dtype=M.dtype)
     mv = lambda x: forward(x, vec_work)
     rmv = lambda y: adjoint(y, vec_work)
     # if k != 1 then we'd need to allocate workspace differently.
     # (And maybe use workspace differently.)
 
     A_precond = sparla.LinearOperator(shape=(A_lift.shape[0], M.shape[1]),
-                                      matvec=mv, rmatvec=rmv)
+                                      matvec=mv, rmatvec=rmv,
+                                      dtype=M.dtype)
 
     M_fwd = lambda z: M @ z
-    M_adj = lambda w: M.T @ w
+    M_adj = lambda w: M_adjmat @ w
 
     return A_precond, M_fwd, M_adj
 
@@ -99,5 +109,6 @@ def svd_right_precond(A_ske):
     Vh = Vh[:rank, :]
     U = U[:, :rank]
     sigma = sigma[:rank]
-    M = Vh.T / sigma
+    V = Vh.T.conj() if law.is_complex(A_ske) else Vh.T
+    M = V / sigma
     return M, U, sigma, Vh

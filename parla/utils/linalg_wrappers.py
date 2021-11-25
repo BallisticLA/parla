@@ -34,3 +34,14 @@ def apply_pinv_on_right(target, operator):
     """return res = target @ pinv(operator)"""
     res = la.lstsq(operator.T, target.T)[0].T
     return res
+
+
+def is_complex(mat):
+    return 'complex' in str(mat.dtype)
+
+
+def herm_adjoint(a):
+    # Calling .conj() allocates a new copy of an array.
+    # We should avoid doing that if possible.
+    ah = a.T if 'complex' not in str(a.dtype) else a.T.conj()
+    return ah
