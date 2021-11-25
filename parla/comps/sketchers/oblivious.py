@@ -62,7 +62,7 @@ class SkOpSJ(SketchOpGen):
             scales_im = rng.standard_normal((S.data.size,))
             scales = scales_re + 1j*scales_im
             scales /= np.abs(scales)
-            S.data = scales
+            S.data = abs(S.data[0]) * scales
             return S
 
 
