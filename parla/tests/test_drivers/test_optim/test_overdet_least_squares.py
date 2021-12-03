@@ -288,16 +288,6 @@ class TestSPO3(TestOverLstsqSolver):
         self._test_convergence_rate(ath, sap, ridge=False)
         pass
 
-    def test_sjlt_complex_qr(self):
-        sap = rlsq.SPO3(oblivious.SkOpSJ(vec_nnz=8, complex=True),
-                        sampling_factor=2)
-        ath = inconsistent_gen()
-        self._test_convergence_rate(ath, sap, ridge=False)
-        self._test_convergence_rate(ath, sap, ridge=True)
-        ath = inconsistent_stackid()
-        self._test_convergence_rate(ath, sap, ridge=False)
-        pass
-
     def test_consistent_tall_qr(self):
         ath = consistent_tall()
         sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=1)
@@ -338,16 +328,6 @@ class TestSPO3(TestOverLstsqSolver):
 
     def test_sjlt_chol(self):
         sap = rlsq.SPO3(oblivious.SkOpSJ(vec_nnz=8), sampling_factor=2, mode='chol')
-        ath = inconsistent_gen()
-        self._test_convergence_rate(ath, sap, ridge=False)
-        self._test_convergence_rate(ath, sap, ridge=True)
-        ath = inconsistent_stackid()
-        self._test_convergence_rate(ath, sap, ridge=False)
-        pass
-
-    def test_sjlt_complex_chol(self):
-        sap = rlsq.SPO3(oblivious.SkOpSJ(vec_nnz=8, complex=True),
-                        sampling_factor=2, mode='chol')
         ath = inconsistent_gen()
         self._test_convergence_rate(ath, sap, ridge=False)
         self._test_convergence_rate(ath, sap, ridge=True)
@@ -427,26 +407,12 @@ class TestSPO1(TestOverLstsqSolver):
         ath = inconsistent_stackid()
         self._test_convergence_rate(ath, sap, ridge=False)
 
-    def test_complex_sjlt(self):
-        sap = rlsq.SPO1(oblivious.SkOpSJ(vec_nnz=8, complex=True),
-                        sampling_factor=3, smart_init=True)
-        ath = inconsistent_gen()
-        self._test_convergence_rate(ath, sap, ridge=False)
-        self._test_convergence_rate(ath, sap, ridge=True)
-        ath = inconsistent_stackid()
-        self._test_convergence_rate(ath, sap, ridge=False)
-
     def test_consistent_tall(self):
         ath = consistent_tall()
         sap = rlsq.SPO1(oblivious.SkOpGA(), 3, smart_init=False)
         self.run_consistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
         sap.sampling_factor = 1
         sap.smart_init = True
-        self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
-
-    def test_consistent_tall_sjlt(self):
-        ath = consistent_tall()
-        sap = rlsq.SPO1(oblivious.SkOpSJ(complex=True), 3, smart_init=True)
         self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
 
     def test_consistent_lowrank(self):

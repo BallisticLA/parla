@@ -147,7 +147,7 @@ class TestSaddleSolver(unittest.TestCase):
                 log = ath.result[2]
                 fit, r2 = ustats.loglinear_fit(np.arange(log.errors.size - 1),
                                                log.errors[1:])
-                self.assertGreaterEqual(r2, 0.9)  # linear convergence
+                self.assertGreaterEqual(r2, 0.95)  # linear convergence
                 self.assertLess(fit[1], -0.3)  # decay faster than \exp(-0.3 t)
                 pass
 
@@ -191,9 +191,9 @@ class TestSaddleSolver(unittest.TestCase):
 class TestSPS1(TestSaddleSolver):
 
     @staticmethod
-    def default_config(complex=False):
+    def default_config():
         alg = SPS1(
-            sketch_op_gen=oblivious.SkOpSJ(complex=complex),
+            sketch_op_gen=oblivious.SkOpSJ(),
             sampling_factor=3,
             iterative_solver=dsad.PcSS1()
         )
@@ -203,33 +203,21 @@ class TestSPS1(TestSaddleSolver):
         alg = TestSPS1.default_config()
         self._test_linspace_spec(alg)
 
-    def test_linspace_spec_complex_sketch(self):
-        alg = TestSPS1.default_config(complex=True)
-        self._test_linspace_spec(alg)
-
     def test_logspace_spec(self):
         alg = TestSPS1.default_config()
-        self._test_logspace_spec(alg)
-
-    def test_logspace_spec_complex_sketch(self):
-        alg = TestSPS1.default_config(complex=True)
         self._test_logspace_spec(alg)
 
     def test_higher_accuracy(self):
         alg = TestSPS1.default_config()
         self._test_higher_accuracy(alg)
 
-    def test_higher_accuracy_complex_sketch(self):
-        alg = TestSPS1.default_config(complex=True)
-        self._test_higher_accuracy(alg)
-
 
 class TestSPS2(TestSaddleSolver):
     
     @staticmethod
-    def default_config(complex=False):
+    def default_config():
         alg = SPS2(
-            sketch_op_gen=oblivious.SkOpSJ(complex=complex),
+            sketch_op_gen=oblivious.SkOpSJ(),
             sampling_factor=3,
             iterative_solver=dsad.PcSS2()
         )
@@ -239,22 +227,10 @@ class TestSPS2(TestSaddleSolver):
         alg = TestSPS2.default_config()
         self._test_linspace_spec(alg)
 
-    def test_linspace_spec_complex_sketch(self):
-        alg = TestSPS2.default_config(complex=True)
-        self._test_linspace_spec(alg)
-
     def test_logspace_spec(self):
         alg = TestSPS2.default_config()
         self._test_logspace_spec(alg)
 
-    def test_logspace_spec_complex_sketch(self):
-        alg = TestSPS2.default_config(complex=True)
-        self._test_logspace_spec(alg)
-
     def test_higher_accuracy(self):
         alg = TestSPS2.default_config()
-        self._test_higher_accuracy(alg)
-
-    def test_higher_accuracy_complex_sketch(self):
-        alg = TestSPS2.default_config(complex=True)
         self._test_higher_accuracy(alg)

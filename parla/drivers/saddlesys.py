@@ -6,7 +6,6 @@ import parla.comps.preconditioning as rpc
 from parla.drivers.least_squares import dim_checks
 from parla.comps.determiter.logging import SketchAndPrecondLog
 from parla.utils.timing import fast_timer
-from parla.utils.linalg_wrappers import herm_adjoint, is_complex
 
 
 NoneType = type(None)
@@ -35,7 +34,6 @@ class SPS1(SaddleSolver):
         sqrt_delta = np.sqrt(delta)
         d = dim_checks(self.sampling_factor, m, n)
         rng = np.random.default_rng(rng)
-        assert not is_complex(A)
 
         if b is None:
             b = np.zeros(m)
@@ -72,7 +70,6 @@ class SPS1(SaddleSolver):
         if la.norm(lhs_ske_pc - rhs_pc, ord=2) >= la.norm(rhs_pc, ord=2):
             z_ske = None
         log.time_presolve = quick_time() - tic
-        #TODO: implement the above for complex-valued "A".
 
         # Main iterative phase
         tic = quick_time()
@@ -119,8 +116,6 @@ class SPS2(SaddleSolver):
         A_ske = S @ A
         A_ske = rpc.a_lift(A_ske, sqrt_delta)  # returns A_ske when delta=0.
         log.time_sketch = quick_time() - tic
-        b = b.astype(A_ske.dtype)
-        c = c.astype(A_ske.dtype) if c is not None else None
 
         # Factor the sketch
         tic = quick_time()
@@ -133,18 +128,17 @@ class SPS2(SaddleSolver):
         b_aug = np.concatenate((b, np.zeros(n))) if delta > 0 else b.copy()
         if c is not None and la.norm(c) > 0:
             v = U @ ((1/sigma) * (Vh @ c))
-            b_aug[:m] -= S.T.conj() @ v[:d]
+            b_aug[:m] -= S.T @ v[:d]
             if delta > 0:
                 b_aug[m:] -= v[d:]
         log.time_convert = quick_time() - tic
 
         # Presolve
         tic = quick_time()
-        Uh = herm_adjoint(U)
-        z_ske = Uh[:, :d] @ (S @ b_aug[:m])
+        z_ske = U[:d, :].T @ (S @ b_aug[:m])
         if delta > 0:
-            z_ske += Uh[:, d] @ b_aug[m:]
-        x_ske = (M @ z_ske).astype(A.dtype)
+            z_ske += U[d:, :].T @ b_aug[m:]
+        x_ske = M @ z_ske
         if la.norm(b_aug - A_aug @ x_ske, ord=2) >= la.norm(b_aug, ord=2):
             z_ske = None
         log.time_presolve = quick_time() - tic
@@ -160,11 +154,10 @@ class SPS2(SaddleSolver):
 
         # Finish timings
         if logging:
-            ar0 = herm_adjoint(M) @ (A_aug.T @ b_aug)
+            ar0 = M.T @ (A_aug.T @ b_aug)
             log.wrap_up(res[2], la.norm(ar0))
             log.error_desc = self.iterative_solver.ERROR_METRIC_INFO
             msg = "The metric above is computed w.r.t. a transformed problem."
             log.error_desc += msg
-            #TODO: update the above to allow complex-valued "A_aug".
 
         return x_star, y_star, log

@@ -39,7 +39,7 @@
 import warnings
 import numpy as np
 from scipy.sparse.linalg.isolve import _iterative
-from parla.comps.determiter.utils import make_system
+from scipy.sparse.linalg.isolve.utils import make_system
 from scipy._lib._util import _aligned_zeros
 from scipy._lib._threadsafety import non_reentrant
 from scipy.sparse.linalg.isolve.iterative import _stoptest, _get_atol, set_docstring
