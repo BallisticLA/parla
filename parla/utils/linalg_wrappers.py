@@ -42,6 +42,11 @@ def is_complex(mat):
 
 def herm_adjoint(a):
     # Calling .conj() allocates a new copy of an array.
-    # We should avoid doing that if possible.
+    #
+    # TODO: consider using scipy.linalg.blas functions with trans=2.
+    #   Caveat: we can't use the same code for complex and real inputs
+    #   (real inputs involve calls to np.dot with an "out" parameter)
+    #   if we rely on complex scipy.linalg.blas functions. So the best
+    #   way forward isn't clear.
     ah = a.T if 'complex' not in str(a.dtype) else a.T.conj()
     return ah

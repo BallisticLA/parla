@@ -21,6 +21,8 @@ Names of implementation classes take the form "SkOp[XY]", where
 """
 import parla.utils.sketching as usk
 import numpy as np
+import warnings
+import scipy.sparse as spar
 
 
 class SketchOpGen:
@@ -64,6 +66,50 @@ class SkOpSJ(SketchOpGen):
             scales /= np.abs(scales)
             S.data = abs(S.data[0]) * scales
             return S
+
+
+class SkOpSR(SketchOpGen):
+
+    def __init__(self, blocks_per_col):
+        self.blocks_per_col = blocks_per_col
+
+    def __call__(self, n_rows, n_cols, rng):
+        if n_rows > n_cols:
+            raise NotImplementedError()
+        vec_nnz = self.blocks_per_col
+        row_vecs, col_vecs, val_vecs = [], [], []
+
+        bad_size = n_rows < vec_nnz
+        if bad_size:
+            msg = f"""
+            Can't set {vec_nnz} nonzeros per column for columns of length {n_rows}.
+            Sampling indices with replacement instead.
+            """
+            warnings.warn(msg)
+
+        for i in range(n_cols):
+            r0 = rng.choice(n_rows, vec_nnz, replace=bad_size)
+            r1 = (1 + r0) % n_rows
+            row_vecs.extend([r0, r1, r0, r1])
+
+            c0 = np.array([i]*vec_nnz)
+            c1 = (1 + c0) % n_cols
+            col_vecs.extend([c0, c0, c1, c1])
+
+            thetas = 2 * np.pi * rng.random(vec_nnz)
+            c_theta = np.cos(thetas)
+            s_theta = np.sin(thetas)
+            val_vecs.extend([c_theta, s_theta, -s_theta, c_theta])
+
+        rows = np.concatenate(row_vecs)
+        cols = np.concatenate(col_vecs)
+        vals = np.concatenate(val_vecs)
+        vals /= np.sqrt(vec_nnz)
+
+        # wrap up
+        S = spar.coo_matrix((vals, (rows, cols)), shape=(n_rows, n_cols))
+        S = S.tocsc()
+        return S
 
 
 class SkOpSS(SketchOpGen):
