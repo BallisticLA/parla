@@ -19,7 +19,7 @@ from parla.comps.sketchers.aware import RowSketcher, RS1
 ###############################################################################
 
 
-def power_rangefinder(A, k, num_pass, rng):
+def rf1(A, k, num_pass, rng):
     """
     Return a matrix Q with k orthonormal columns, where Range(Q) is
     an approximation for the span of A's top k left singular vectors.

@@ -6,7 +6,7 @@ import parla.utils.sketching as usk
 import parla.utils.linalg_wrappers as ulaw
 
 
-def powered_range_sketch_op(num_pass, A, k, rng):
+def rs1(A, k, num_pass, rng):
     """
     Return an n-by-k matrix S for use in sketching the rows of the m-by-n
     matrix A. (I.e., for computing a sketch Y = A @ S.) The qualitative goal
