@@ -7,6 +7,18 @@ from parla.comps.determiter.cg import cg
 from parla.comps.preconditioning import a_times_inv_r, a_times_m
 
 
+def pcss1(A, b, c, delta, tol, iter_lim, R, upper_tri, z0):
+    """Instantiates and calls a PcSS1 PrecondSaddleSolver algorithm."""
+    alg = PcSS1()
+    return alg(A, b, c, delta, tol, iter_lim, R, upper_tri, z0)
+
+
+def pcss2(A, b, c, delta, tol, iter_lim, R, upper_tri, z0):
+    """Instantiates and calls a PcSS2 PrecondSaddleSolver algorithm."""
+    alg = PcSS2()
+    return alg(A, b, c, delta, tol, iter_lim, R, upper_tri, z0)
+
+
 class PrecondSaddleSolver:
 
     def __call__(self, A, b, c, delta, tol, iter_lim, R, upper_tri, z0):

@@ -2,6 +2,9 @@ import numpy as np
 import scipy.linalg as la
 from scipy import linalg as la
 from parla import RowSketcher
+import parla.comps.sketchers.oblivious as osk
+import parla.comps.sketchers.aware as ask
+import parla.utils.linalg_wrappers as ulaw
 
 
 def qrcp_osid(Y, k, axis):
@@ -42,6 +45,15 @@ class RowOrColSelection:
         possibly-permuted k-by-k identity matrix.
         """
         raise NotImplementedError()
+
+
+def rocs1(A, k, over, p, axis, rng):
+    rng = np.random.default_rng(rng)
+    skop = osk.SkOpGA()
+    rs = ask.RS1(skop, p - 1, ulaw.orth, passes_per_stab=1)
+    alg = ROCS1(rs)
+    idxs = alg(A, k, over, axis, rng)
+    return idxs
 
 
 class ROCS1(RowOrColSelection):

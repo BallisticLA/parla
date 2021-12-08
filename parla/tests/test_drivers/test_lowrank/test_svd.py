@@ -53,14 +53,12 @@ class AlgTestHelper:
         diffs = np.diff(s_rev)
         self.tester.assertGreaterEqual(np.min(diffs), 0.0)
 
-    def test_abs_fro_error(self, abs_tol):
-        #TODO: change this to relative tolerance
+    def test_rel_fro_error(self, rel_tol):
         U, s, Vt = self.UsVt
         delta = self.A - (U * s) @ Vt
         nrm = la.norm(delta, ord='fro')
-        # abs_tol = rel_tol * np.norm(self.s, ord=2)
+        abs_tol = rel_tol * la.norm(self.s, ord=2)
         # ^ Scale by  Frobenius norm of A.
-        # self.tester.assertLessEqual(nrm, abs_tol)
         self.tester.assertLessEqual(nrm, abs_tol)
 
 
@@ -82,7 +80,7 @@ class TestSVDecomposer(unittest.TestCase):
             ath.test_valid_singvals()
             ath.test_valid_onb(test_tol)
             if not np.isnan(target_tol):
-                ath.test_abs_fro_error(target_tol)
+                ath.test_rel_fro_error(target_tol)
 
 
 class TestSVD1(TestSVDecomposer):
@@ -136,16 +134,15 @@ class TestSVD1(TestSVDecomposer):
         # Tall matrix
         ath = AlgTestHelper.convert(test_qb.tall_full_exact_rank())
         rank = min(ath.A.shape)
-        abs_err = 0.25*la.norm(ath.s, ord=2)
-        self.run_batch(ath, alg, rank, abs_err, 0, 1e-8, self.SEEDS)
-        self.run_batch(ath, alg, rank, abs_err, 2, 1e-8, self.SEEDS)
+        rel_err = 0.25
+        self.run_batch(ath, alg, rank, rel_err, 0, 1e-8, self.SEEDS)
+        self.run_batch(ath, alg, rank, rel_err, 2, 1e-8, self.SEEDS)
 
         # Wide matrix
         ath = AlgTestHelper.convert(test_qb.wide_full_exact_rank())
         rank = min(ath.A.shape)
-        abs_err = 0.25*la.norm(ath.s, ord=2)
-        self.run_batch(ath, alg, rank, abs_err, 0, 1e-8, self.SEEDS)
-        self.run_batch(ath, alg, rank, abs_err, 2, 1e-8, self.SEEDS)
+        self.run_batch(ath, alg, rank, rel_err, 0, 1e-8, self.SEEDS)
+        self.run_batch(ath, alg, rank, rel_err, 2, 1e-8, self.SEEDS)
         pass
 
     def test_fp_exact(self):
@@ -164,22 +161,20 @@ class TestSVD1(TestSVDecomposer):
         # Tall matrix (low exact rank)
         ath = AlgTestHelper.convert(test_qb.tall_low_exact_rank())
         rank = min(ath.A.shape)
-        abs_err = 1e-12*la.norm(ath.s, ord=2)
-        self.run_batch(ath, alg, rank, abs_err, 0, 1e-8, self.SEEDS)
-        self.run_batch(ath, alg, rank, abs_err, 2, 1e-8, self.SEEDS)
+        rel_err = 1e-12
+        self.run_batch(ath, alg, rank, rel_err, 0, 1e-8, self.SEEDS)
+        self.run_batch(ath, alg, rank, rel_err, 2, 1e-8, self.SEEDS)
 
         # Tall matrix (full rank)
         ath = AlgTestHelper.convert(test_qb.tall_full_exact_rank())
         rank = min(ath.A.shape)
-        abs_err = 1e-12*la.norm(ath.s, ord=2)
-        self.run_batch(ath, alg, rank, abs_err, 0, 1e-8, self.SEEDS)
-        self.run_batch(ath, alg, rank, abs_err, 1, 1e-8, self.SEEDS)
-        self.run_batch(ath, alg, rank, abs_err, 2, 1e-8, self.SEEDS)
+        self.run_batch(ath, alg, rank, rel_err, 0, 1e-8, self.SEEDS)
+        self.run_batch(ath, alg, rank, rel_err, 1, 1e-8, self.SEEDS)
+        self.run_batch(ath, alg, rank, rel_err, 2, 1e-8, self.SEEDS)
 
         # Wide matrix
         ath = AlgTestHelper.convert(test_qb.wide_low_exact_rank())
         rank = min(ath.A.shape)
-        abs_err = 1e-12*la.norm(ath.s, ord=2)
-        self.run_batch(ath, alg, rank, abs_err, 0, 1e-8, self.SEEDS)
-        self.run_batch(ath, alg, rank, abs_err, 2, 1e-8, self.SEEDS)
+        self.run_batch(ath, alg, rank, rel_err, 0, 1e-8, self.SEEDS)
+        self.run_batch(ath, alg, rank, rel_err, 2, 1e-8, self.SEEDS)
         pass

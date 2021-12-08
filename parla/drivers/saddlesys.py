@@ -3,6 +3,7 @@ import numpy as np
 from typing import Union
 import parla.comps.determiter.saddle as dsad
 import parla.comps.preconditioning as rpc
+import parla.comps.sketchers.oblivious as sko
 from parla.drivers.least_squares import dim_checks
 from parla.comps.determiter.logging import SketchAndPrecondLog
 from parla.utils.timing import fast_timer
@@ -15,6 +16,18 @@ class SaddleSolver:
 
     def __call__(self, A, b, c, delta, tol, iter_lim, rng, logging):
         raise NotImplementedError()
+
+
+def sps(A, b, c, delta, tol, iter_lim, rng, sampling_factor=3, vec_nnz=8, method='pcg'):
+    skop = sko.SkOpSJ(vec_nnz)
+    if method == 'pcg':
+        solver = dsad.PcSS1()
+    elif method == 'lsqr':
+        solver = dsad.PcSS2()
+    else:
+        raise ValueError(f'Method {method} not recognized. Use "pcg" or "lsqr".')
+    alg = SPS1(skop, sampling_factor, solver)
+    return alg(A, b, c, delta, tol, iter_lim, rng, logging=True)
 
 
 class SPS1(SaddleSolver):

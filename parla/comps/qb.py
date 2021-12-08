@@ -87,7 +87,7 @@ def qb_b(inner_num_pass, blk, overwrite_A, A, k, tol, rng):
     Iteratively build an approximate QB factorization of A,
     which terminates once either of the following conditions
     is satisfied
-        (1)  || A - Q B ||_Fro <= tol
+        (1)  || A - Q B ||_Fro <= tol * || A ||_Fro
     or
         (2) Q has k columns.
 
@@ -116,8 +116,8 @@ def qb_b(inner_num_pass, blk, overwrite_A, A, k, tol, rng):
         valid way of ensuring Q.shape[1] == k on exit.
 
     tol : float
-        Terminate if ||A - Q B||_Fro <= tol. Setting k = min(A.shape) is a
-        valid way of ensuring ||A - Q B||_Fro <= tol on exit.
+        Terminate if ||A - Q B||_Fro <= tol * || A ||_Fro. Setting k = min(A.shape)
+        is a valid way to ensure that this is the exit condition.
 
     rng : Union[None, int, SeedSequence, BitGenerator, Generator]
         Determines the numpy Generator object that manages randomness
@@ -172,7 +172,7 @@ def qb_b_pe(num_passes, blk, A, k, tol, rng):
     Iteratively build an approximate QB factorization of A,
     which terminates once either of the following conditions
     is satisfied
-        (1)  || A - Q B ||_Fro <= tol
+        (1) || A - Q B ||_Fro <= tol * || A ||_Fro
     or
         (2) Q has k columns.
 
@@ -199,7 +199,7 @@ def qb_b_pe(num_passes, blk, A, k, tol, rng):
         Terminate if Q.shape[1] == k.
 
     tol : float
-        Terminate if ||A - Q B||_Fro <= tol.
+        Terminate if ||A - Q B||_Fro <= tol * || A ||_Fro.
 
     rng : Union[None, int, SeedSequence, BitGenerator, Generator]
         Determines the numpy Generator object that manages randomness
@@ -261,12 +261,12 @@ class QBDecomposer:
             tolerance has been met.
 
         tol : float
-            Target for the error  ||A - Q B||: 0 <= tol < np.inf. Only
-            certain implementations are able to control approximation error.
-            Those implementations may return a matrix Q with fewer than k
-            columns if ||A - Q B|| <= tol. Assuming k < rank(A) and that the
-            implementation can compute ||A - Q B|| accurately, setting
-            tol=0 means the implementation will return Q, B with exact rank k.
+            0 <= tol < 1. Target for the relative error  ||A - Q B|| / ||A|| measured
+            in some norm (often Frobenius). Only certain implementations are able to
+            control approximation error. Those implementations may return a matrix Q
+            with fewer than k columns if ||A - Q B|| <= ||A|| * tol. Assuming
+            k < rank(A) and that the implementation can compute ||A - Q B|| accurately,
+            setting tol=0 means the implementation will return (Q, B) with exact rank k.
 
         rng : Union[None, int, SeedSequence, BitGenerator, Generator]
             Determines the numpy Generator object that manages any and all
@@ -344,7 +344,7 @@ class QB1(QBDecomposer):
         assert k <= min(A.shape)
         if not np.isnan(tol):
             assert tol >= 0
-            assert tol < np.inf
+            assert tol < 1
         rng = np.random.default_rng(rng)
         Q = self.rangefinder(A, k, tol, rng)
         B = Q.T @ A
@@ -356,9 +356,9 @@ class QB2(QBDecomposer):
     Common uses of a QB2 object "qb_alg"
 
         qb_alg(A, min(A.shape), tol, rng) will return
-        an approximation (Q, B) where ||A - Q B || <= tol.
+        an approximation (Q, B) where ||A - Q B ||_Fro <= tol * ||A||_Fro.
 
-        qb_alg(A, k, 0, rng) will return (Q, B)
+        qb_alg(A, k, 0.0, rng) will return (Q, B)
         where Q has k columns.
     """
 
@@ -375,10 +375,11 @@ class QB2(QBDecomposer):
         and rows to B. The algorithm modifies A in-place. If
         self.overwrite_a = False, then a copy of A is made at the start
         of this function call. We start by initializing Q, B with shapes
-        (A.shape[0], 0) and (0, A.shape[1]), and we roughly proceed as follows
+        (A.shape[0], 0) and (0, A.shape[1]), setting abs_tol = ||A||_Fro * tol,
+        and we roughly proceed as follows
 
             cur_blk = min(k - Q.shape[1], self.blk)
-            if cur_blk == 0 or ||A||_Fro <= tol:
+            if cur_blk == 0 or ||A||_Fro <= abs_tol:
                 return Q, B
             Qi = rangefinder(A, cur_blk, 0.0, rng)
             Bi = Qi.T @ A
@@ -402,10 +403,10 @@ class QB2(QBDecomposer):
             on exit.
 
         tol : float
-            Target for the error ||A - Q B||_Fro: 0 <= tol < np.inf.
-            If ||A - Q B||_Fro <= tol, then return (Q, B). Setting
-            k = min(A.shape) is a valid way of ensuring ||A - Q B||_Fro <= tol
-            on exit.
+            Target for the relative error  ||A - Q B||_Fro / ||A||_Fro:
+            0 <= tol < 1. If the relative error drops below  tol,
+            then return (Q, B). Setting k = min(A.shape) is a valid way
+            of ensuring ||A - Q B||_Fro / ||A||_Fro <= tol on exit.
 
         rng : Union[None, int, SeedSequence, BitGenerator, Generator]
             Determines the numpy Generator object that manages any and all
@@ -449,14 +450,11 @@ class QB2(QBDecomposer):
             k = small_dim
             warnings.warn(msg)
         assert k <= min(A.shape)
-        use_tol = not np.isnan(tol)
-        if use_tol:
-            assert tol >= 0
-            assert tol < np.inf
-            use_tol = tol > 0  # override to False if tol == 0.
+        use_tol = not np.isnan(tol) and tol > 0
         if use_tol:
             sq_norm_A = la.norm(A, ord='fro') ** 2
             sq_tol = tol ** 2
+            abs_sq_tol = sq_norm_A * sq_tol
         rng = np.random.default_rng(rng)
         Q = np.empty(shape=(A.shape[0], 0), dtype=float)
         B = np.empty(shape=(0, A.shape[1]), dtype=float)
@@ -476,7 +474,7 @@ class QB2(QBDecomposer):
             A -= Qi @ Bi
             if use_tol:
                 sq_norm_A = sq_norm_A - la.norm(Bi, ord='fro') ** 2
-                if sq_norm_A <= sq_tol:
+                if sq_norm_A <= abs_sq_tol:
                     break
             if B.shape[0] >= k:
                 break
@@ -513,11 +511,11 @@ class QB3(QBDecomposer):
             inequality k < min(A.shape).
 
         tol : float
-            Target for the error ||A - Q B||_Fro: 0 <= tol < np.inf.
-            If ||A - Q B||_Fro <= tol, then return (Q, B). There is
-            no way of ensuring that ||A - Q B||_Fro <= tol holds on
-            exit. Setting tol=0 skips the computations that are typically
-            necessary for monitoring early-stopping.
+            Early-stopping target for the error relative ||A - Q B||_Fro / || A ||_Fro.
+            If the relative error falls below tol, then return (Q, B).
+            There is no way of ensuring that this target is achieved. Setting tol=0
+            skips the computations that are typically necessary for monitoring
+            early-stopping.
 
         rng : Union[None, int, SeedSequence, BitGenerator, Generator]
             Determines the numpy Generator object that manages any and all
@@ -556,14 +554,11 @@ class QB3(QBDecomposer):
         """
         assert k > 0
         assert k < min(A.shape)
-        use_tol = not np.isnan(tol)
-        if use_tol:
-            assert tol >= 0
-            assert tol < np.inf
-            use_tol = tol > 0  # override to False if tol == 0.
+        use_tol = not np.isnan(tol) and tol > 0
         if use_tol:
             sq_norm_A = la.norm(A, ord='fro') ** 2
             sq_tol = tol ** 2
+            abs_sq_tol = sq_norm_A * sq_tol
         Q = np.empty(shape=(A.shape[0], 0), dtype=float)
         B = np.empty(shape=(0, A.shape[1]), dtype=float)
         rng = np.random.default_rng(rng)
@@ -594,7 +589,7 @@ class QB3(QBDecomposer):
             B = np.row_stack((B, Bi))
             if use_tol:
                 sq_norm_A = sq_norm_A - la.norm(Bi, ord='fro')**2
-                if sq_norm_A <= sq_tol:
+                if sq_norm_A <= abs_sq_tol:
                     break  # early stopping
         return Q, B
 

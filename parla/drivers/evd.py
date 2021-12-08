@@ -4,7 +4,7 @@ import parla.comps.sketchers.oblivious as oblivious
 import warnings
 from parla.comps.rangefinders import RF1
 from parla.comps.sketchers.aware import RowSketcher, RS1
-from parla.comps.qb import QBDecomposer, QB1, QB2
+from parla.comps.qb import QBDecomposer, QB2
 import parla.utils.linalg_wrappers as ulaw
 
 
@@ -13,7 +13,7 @@ import parla.utils.linalg_wrappers as ulaw
 ###############################################################################
 
 
-def evd1(A, k, tol, over, num_passes, block_size, rng):
+def evd1(A, k, tol, over, inner_num_pass, block_size, rng):
     """
     Return ndarrays (V, lamb) that define a symmetric matrix "A_approx" through
     its eigen-decomposition:
@@ -36,25 +36,26 @@ def evd1(A, k, tol, over, num_passes, block_size, rng):
         min(k, rank(A)).
 
     tol : float
-        Target accuracy for the oversampled approximation of A: 0 < tol < np.inf.
+        Target relative accuracy for the oversampled approximation of A.
         If you set k = n and over=0 then the returned approximation should
-        satisfy ||A - A_approx||_F <= tol.
+        satisfy ||A - A_approx||_F / || A ||_F <= tol.
 
     over : int
         Perform internal calculations with a sketch of rank (k + over).
         This is usually a small constant, e.g., 5 to 25. In some situations
         it's useful to set over = k. It's valid to set over = 0.
 
-    num_passes : int
-        Total number of passes the algorithm is allowed over A.
-        We require num_passes >= 2, and usually we have num_passes <= 10.
+    inner_num_pass : int
+        Total number of passes the algorithm makes over A in a single iteration.
+        This must be at least 2 and is usually not more than 10.
         Increasing this parameter is one way to obtain better
         approximations, especially at lower ranks.
 
     block_size : int
         The approximation is built incrementally, updating the rank by
-        block_size at each iteration (with safeguards so we never exceed
-        the rank of A).
+        block_size at each iteration (with safeguards, so we never exceed
+        the rank of A). If block_size = k + over, then the algorithm accesses
+        A "inner_num_pass" times.
 
     rng : Union[None, int, SeedSequence, BitGenerator, Generator]
         Determines the numpy Generator object that manages randomness
@@ -86,7 +87,7 @@ def evd1(A, k, tol, over, num_passes, block_size, rng):
         (available at `arXiv <http://arxiv.org/abs/0909.4061>`_).
     """
     rng = np.random.default_rng(rng)
-    rso_ = RS1(oblivious.SkOpGA(), num_passes - 2, ulaw.orth, 1)
+    rso_ = RS1(oblivious.SkOpGA(), inner_num_pass - 2, ulaw.orth, 1)
     rf_ = RF1(rso_)
     qb_ = QB2(rf_, block_size, overwrite_a=False)
     evd_ = EVD1(qb_)
@@ -183,7 +184,7 @@ class EVDecomposer:
             Target rank for the approximation of A: 0 < k < n.
 
         tol : float
-            Target accuracy for the approximation of A: 0 <= tol < np.inf.
+            Relative target accuracy for the approximation of A.
 
         over : int
             Perform internal calculations with a sketch of rank (k + over).
@@ -235,8 +236,9 @@ class EVD1(EVDecomposer):
             Target rank for the approximation of A: 0 < k <= n.
             
         tol : float
-            Target accuracy for the oversampled approximation of A: 0 < tol < np.inf.
-            If k = n and over = 0, then we should have ||A - A_approx||_F <= tol.
+            Relative target accuracy for the oversampled approximation of A.
+            If k = n and over = 0, then we should have
+            ||A - A_approx||_Fro / || A ||_Fro <= tol.
             
         over : int
             Perform internal calculations using a sketch of rank k + over.

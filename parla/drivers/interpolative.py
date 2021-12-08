@@ -1,8 +1,9 @@
 import numpy as np
 import scipy.linalg as la
 from scipy.sparse.linalg import LinearOperator
-from parla.comps.interpolative import RowOrColSelection
-from parla.comps.sketchers.aware import RowSketcher
+from parla.comps.interpolative import RowOrColSelection, ROCS1
+from parla.comps.sketchers.aware import RowSketcher, RS1
+import parla.comps.sketchers.oblivious as osk
 import parla.comps.interpolative as id_comps
 import parla.utils.linalg_wrappers as ulaw
 
@@ -35,6 +36,16 @@ class OneSidedID:
         raise NotImplementedError()
 
 
+#NOTE: Could merge with osid2 by adding a single additional keyword argument
+def osid1(A, k, over, p, axis, rng):
+    rng = np.random.default_rng(rng)
+    skop = osk.SkOpGA()
+    rs = RS1(skop, p - 1, ulaw.orth, passes_per_stab=1)
+    alg = OSID1(rs)
+    res = alg(A, k, over, axis, rng)
+    return res
+
+
 class OSID1(OneSidedID):
     """
     Sketch + QRCP approach to ID
@@ -61,6 +72,15 @@ class OSID1(OneSidedID):
             return Z, Js
         else:
             raise ValueError()
+
+
+def osid2(A, k, over, p, axis, rng):
+    rng = np.random.default_rng(rng)
+    skop = osk.SkOpGA()
+    rs = RS1(skop, p - 1, ulaw.orth, passes_per_stab=1)
+    alg = OSID2(rs)
+    res = alg(A, k, over, axis, rng)
+    return res
 
 
 class OSID2(OneSidedID):
@@ -113,6 +133,16 @@ class TwoSidedID:
         raise NotImplementedError()
 
 
+def tsid1(A, k, over, p, rng):
+    rng = np.random.default_rng(rng)
+    skop = osk.SkOpGA()
+    rs = RS1(skop, p - 1, ulaw.orth, passes_per_stab=1)
+    osid = OSID1(rs)
+    tsid = TSID1(osid)
+    Z, Is, X, Js = tsid(A, k, over, rng)
+    return Z, Is, X, Js
+
+
 class TSID1(TwoSidedID):
     """
     Obtain a one-sided ID by any means, then deterministically extend
@@ -153,6 +183,16 @@ class CURDecomposition:
         raise NotImplementedError()
 
 
+def cur1(A, k, over, p, rng):
+    rng = np.random.default_rng(rng)
+    skop = osk.SkOpGA()
+    rs = RS1(skop, p - 2, ulaw.orth, passes_per_stab=1)
+    osid = OSID1(rs)
+    cur = CUR1(osid)
+    Js, U, Is = cur(A, k, over, rng)
+    return Js, U, Is
+
+
 class CUR1(CURDecomposition):
 
     def __init__(self, osid: OneSidedID):
@@ -176,6 +216,16 @@ class CUR1(CURDecomposition):
             U = ulaw.apply_pinv_on_left(Z, operator=A[:, Js])
             # U = A[:, Js]^\dagger Z
             return Js, U, Is
+
+
+def cur2(A, k, over, p, rng):
+    rng = np.random.default_rng(rng)
+    skop = osk.SkOpGA()
+    rs = RS1(skop, p - 2, ulaw.orth, passes_per_stab=1)
+    rocs = ROCS1(rs)
+    cur = CUR2(rocs)
+    Js, U, Is = cur(A, k, over, rng)
+    return Js, U, Is
 
 
 class CUR2(CURDecomposition):

@@ -412,6 +412,7 @@ class TestQB2(TestQBDecomposer):
 
 
 class TestQB3(TestQBDecomposer):
+
     def test_exact(self):
         alg = rqb.QB3(
             sk_op=rqb.RS1(
@@ -447,7 +448,7 @@ class TestQB3(TestQBDecomposer):
 
         """
         No sparse operator testing, since QB3 requires the sketching routine to return a dense matrix.
-        Should we autimatically change storage type of a sketch if it is not dense for QB3 (so that it can still use
+        Should we automatically change storage type of a sketch if it is not dense for QB3 (so that it can still use
         sparse operators)?
         """
 
@@ -511,4 +512,4 @@ class TestQB3(TestQBDecomposer):
         if ath2.s.size * 1.2 <= min(ath1.A.shape):
             alg_rank_overestimated = math.floor(ath2.s.size * 1.2)
             self.run_batch_estimated(ath2, alg, alg_rank_overestimated, alg_tol, test_tol, self.SEEDS)   
-"""     
+"""

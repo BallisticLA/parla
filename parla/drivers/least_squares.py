@@ -5,6 +5,7 @@ underdetermined least squares problems.
 import warnings
 import scipy.linalg as la
 import numpy as np
+import parla.comps.sketchers.oblivious as sko
 import parla.comps.preconditioning as rpc
 import parla.comps.determiter.saddle as dsad
 from parla.utils.timing import fast_timer
@@ -90,6 +91,12 @@ def dim_checks(sampling_factor, n_rows, n_cols):
     return d
 
 
+def sso1(A, b, delta, rng, sampling_factor=3, vec_nnz=8, lapack_driver='gelsd'):
+    skop = sko.SkOpSJ(vec_nnz)
+    alg = SSO1(skop, sampling_factor, lapack_driver, overwrite_sketch=True)
+    return alg(A, b, delta, np.NaN, 1, rng, logging=True)
+
+
 class SSO1(OverLstsqSolver):
     """A sketch-and-solve approach to overdetermined ordinary least squares.
 
@@ -153,6 +160,12 @@ class SSO1(OverLstsqSolver):
 
         x_ske = res[0]
         return x_ske, log
+
+
+def spo1(A, b, delta, tol, iter_lim, rng, sampling_factor=3, vec_nnz=8):
+    skop = sko.SkOpSJ(vec_nnz)
+    alg = SPO1(skop, sampling_factor, smart_init=True)
+    return alg(A, b, delta, tol, iter_lim, rng, logging=True)
 
 
 class SPO1(OverLstsqSolver):
@@ -232,6 +245,12 @@ class SPO1(OverLstsqSolver):
             log.error_desc = self.iterative_solver.ERROR_METRIC_INFO
 
         return x_star, log
+
+
+def spo3(A, b, delta, tol, iter_lim, rng, sampling_factor=3, vec_nnz=8, mode='qr'):
+    skop = sko.SkOpSJ(vec_nnz)
+    alg = SPO3(skop, sampling_factor, mode)
+    return alg(A, b, delta, tol, iter_lim, rng, logging=True)
 
 
 class SPO3(OverLstsqSolver):
@@ -347,6 +366,12 @@ class UnderLstsqSolver:
     def __call__(self, A, c, tol, iter_lim, rng, logging=False):
         """TODO: write docstring"""
         raise NotImplementedError()
+
+
+def spu1(A, c, tol, iter_lim, rng, sampling_factor=3, vec_nnz=8):
+    skop = sko.SkOpSJ(vec_nnz)
+    alg = SPU1(skop, sampling_factor)
+    return alg(A, c, tol, iter_lim, rng, logging=True)
 
 
 class SPU1(UnderLstsqSolver):
