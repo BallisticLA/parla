@@ -1,42 +1,80 @@
 import numpy as np
 import scipy.linalg as la
-from scipy.sparse.linalg import LinearOperator
-from parla.comps.interpolative import RowOrColSelection, ROCS1
 from parla.comps.sketchers.aware import RowSketcher, RS1
 import parla.comps.sketchers.oblivious as osk
 import parla.comps.interpolative as id_comps
 import parla.utils.linalg_wrappers as ulaw
+import parla.utils.misc as misc
 
 
 class OneSidedID:
-    """One-sided ID (row or column)"""
 
-    def __call__(self, A, k, over, axis, gen):
-        """
-        Run a rank-k RowID (axis=0) or ColumnID (axis=1) on A,
-        using oversampling parameter over.
+    CALL_LEAD_DOC = \
+    """
+    Run a rank-k RowID (axis=0) or ColumnID (axis=1) on A, using
+    oversampling parameter "over". See Background for more information.
+    """
 
-        A RowID consists of a matrix "Z" and a length-k index vector "Is" so
-        that A \approx Z @ A[Is,:]. The rows of Z must contain a
-        possibly-permuted k-by-k identity matrix, such that
+    CALL_IO_DOC = \
+    """
+    Parameters
+    ----------
+    A : Union[ndarray, spmatrix, LinearOperator]
+        Data matrix to approximate.
 
-            A[Is, :] = (Z @ A[Is, :])[Is,:].
+    k : int
+        Target rank for the approximation of A: 0 < k < min(A.shape).
 
-        Note that if we assume the rows of A[Is, :] are linearly independent, then
-        the above equations are equivalent to Z[Is, :] being a k-by-k identity matrix.
+    over : int
+        Perform internal calculations with a sketch of rank (k + over).
+        This is usually a small constant, e.g., 5 to 25. In some situations
+        it's useful to set over = k.
 
-        A ColumnID consists of a matrix "X" and a length-k index vector "Js" so
-        that A \approx A[:,Js] @ X. The columns of X must contain a
-        possibly-permuted k-by-k identity matrix, such that
+    axis : int
+        0 for a row ID, 1 for a column ID
 
-            A[:, Js] = (A[:,Js] @ X)[:, Js].
+    rng : Union[None, int, SeedSequence, BitGenerator, Generator]
+        Determines the numpy Generator object that manages randomness
+        in this function call.
 
-        As with row ID, this means X[:, Js] is a k-by-k identity matrix
-        """
+    Returns
+    -------
+    idxs : ndarray
+        Skeleton indices
+
+    mat : ndarray
+        Interpolative coefficient matrix
+    """
+
+    BACKGROUND = \
+    """
+    Background
+    ----------
+    A RowID consists of a matrix "Z" and a length-k index vector "Is" so
+    that A \\approx Z @ A[Is,:]. The rows of Z must contain a
+    possibly-permuted k-by-k identity matrix, such that
+
+        A[Is, :] = (Z @ A[Is, :])[Is,:].
+
+    Note that if we assume the rows of A[Is, :] are linearly independent, then
+    the above equations are equivalent to Z[Is, :] being a k-by-k identity matrix.
+
+    A ColumnID consists of a matrix "X" and a length-k index vector "Js" so
+    that A \\approx A[:,Js] @ X. The columns of X must contain a
+    possibly-permuted k-by-k identity matrix, such that
+
+        A[:, Js] = (A[:,Js] @ X)[:, Js].
+
+    As with row ID, this means X[:, Js] is a k-by-k identity matrix.
+    """
+
+    CALL_DOC = CALL_LEAD_DOC + CALL_IO_DOC + BACKGROUND
+
+    @misc.set_docstring(CALL_DOC)
+    def __call__(self, A, k, over, axis, rng):
         raise NotImplementedError()
 
 
-#NOTE: Could merge with osid2 by adding a single additional keyword argument
 def osid1(A, k, over, p, axis, rng):
     rng = np.random.default_rng(rng)
     skop = osk.SkOpGA()
@@ -56,6 +94,7 @@ class OSID1(OneSidedID):
     def __init__(self, sk_op: RowSketcher):
         self.sk_op = sk_op
 
+    @misc.set_docstring(OneSidedID.CALL_DOC)
     def __call__(self, A, k, over, axis, rng):
         rng = np.random.default_rng(rng)
         if axis == 0:
@@ -93,6 +132,7 @@ class OSID2(OneSidedID):
     def __init__(self, sk_op: RowSketcher):
         self.sk_op = sk_op
 
+    @misc.set_docstring(OneSidedID.CALL_DOC)
     def __call__(self, A, k, over, axis, rng):
         rng = np.random.default_rng(rng)
         if axis == 0:
