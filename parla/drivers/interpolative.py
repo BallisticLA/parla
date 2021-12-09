@@ -177,23 +177,73 @@ class OSID2(OneSidedID):
 
 
 class TwoSidedID:
-    """Fixed rank Double ID"""
+    CALL_LEAD_DOC = \
+    """
+    Compute a rank-k two-sided ID on A. This consists of row and column
+    skeleton indices (Is, Js) as well as a pair of interpolative coefficient
+    matrices (Z, X), which define an approximation
+    
+         A_hat  =  Z @ A[Is, Js] @ X  \\approx  A.
+    """
 
+    CALL_IO_DOC = \
+    """
+    Parameters
+    ----------
+    A : Union[ndarray, spmatrix, LinearOperator]
+        Data matrix to approximate. Say it has dimensions (m, n).
+
+    k : int
+        Target rank for the approximation of A: 0 < k < min(m, n).
+
+    over : int
+        Perform internal calculations with a sketch of rank (k + over).
+        This is usually a small constant, e.g., 5 to 25. In some situations
+        it's useful to set over = k.
+    %s
+    rng : Union[None, int, SeedSequence, BitGenerator, Generator]
+        Determines the numpy Generator object that manages randomness
+        in this function call.
+
+    Returns
+    -------
+    Z : ndarray
+        Left interpolative coefficient matrix. Has shape (m, k).
+    
+    Is : ndarray
+        Row skeleton indices. Has shape (k,).
+    
+    X : ndarray
+        Right interpolative coefficient matrix. Has shape (k, n).
+        
+    Js : ndarray
+        Column skeleton indices. Has shape (k,).
+    """
+
+    BACKGROUND = ''
+
+    CALL_DOC = CALL_LEAD_DOC + CALL_IO_DOC + BACKGROUND
+
+    @misc.set_docstring(CALL_DOC % '')
     def __call__(self, A, k, over, rng):
-        """
-        Return (Z, Is, X, Js) where
-            Z is A.shape[0]-by-k,
-            Is is an index vector of length k,
-            X is k-by-A.shape[1],
-            Js is an index vector of length k,
-        so that
-            A \approx Z @ A[Is, Js] @ X.
-
-        Use oversampling parameter "over" in the sketching step.
-        """
         raise NotImplementedError()
 
 
+@misc.set_docstring(TwoSidedID.CALL_LEAD_DOC +
+    """
+    Do this with a two-phase approach. The first phase uses randomized one-sided
+    ID and determines the quality of the approximation. The second phase uses 
+    deterministic full-rank one-sided ID based on QRCP. 
+    
+    The randomized phase obtains skeleton indices and the interpolative coefficient
+    matrix from an oversampled sketch of A. 
+    """ + (
+        TwoSidedID.CALL_IO_DOC % """
+    p : int
+        Total number of passes over the full data matrix A. Use p - 1
+        passes as part of a power iteration method to help find a
+        more accurate solution. 
+    """) + TwoSidedID.BACKGROUND)
 def tsid1(A, k, over, p, rng):
     rng = np.random.default_rng(rng)
     skop = osk.SkOpGA()
@@ -216,6 +266,7 @@ class TSID1(TwoSidedID):
     def __init__(self, osid: OneSidedID):
         self.osid = osid
 
+    @misc.set_docstring(TwoSidedID.CALL_DOC % '')
     def __call__(self, A, k, over, rng):
         rng = np.random.default_rng(rng)
         if A.shape[0] > A.shape[1]:
@@ -228,22 +279,72 @@ class TSID1(TwoSidedID):
 
 
 class CURDecomposition:
-    """Fixed rank CUR Decomposition"""
 
+    CALL_LEAD_DOC = \
+    """
+    Compute a rank-k approximation to A, represented by its CUR decomposition.
+    This consists of column and row skeleton indices (Js, Is) and a linking 
+    matrix U, which define an approximation
+
+         A_hat  =  A[:, Js] @ U @ A[Is, :]  \\approx  A.
+    """
+
+    CALL_IO_DOC = \
+    """
+    Parameters
+    ----------
+    A : Union[ndarray, spmatrix, LinearOperator]
+        Data matrix to approximate.
+
+    k : int
+        Target rank for the approximation of A: 0 < k < min(A.shape).
+
+    over : int
+        Perform internal calculations with a sketch of rank (k + over).
+        This is usually a small constant, e.g., 5 to 25. In some situations
+        it's useful to set over = k.
+    %s    
+    rng : Union[None, int, SeedSequence, BitGenerator, Generator]
+        Determines the numpy Generator object that manages randomness
+        in this function call.
+
+    Returns
+    -------
+
+    Js : ndarray
+        Column skeleton indices. Has shape (k,).
+
+    U : ndarray
+        Linking matrix. Has shape (k, k).
+
+    Is : ndarray
+        Row skeleton indices. Has shape (k,).
+    """
+
+    BACKGROUND = ''
+
+    CALL_DOC = CALL_LEAD_DOC + CALL_IO_DOC + BACKGROUND
+
+    @misc.set_docstring(CALL_DOC % '')
     def __call__(self, A, k, over, rng):
-        """
-        Return (J, U, I) where
-            C = A[:, J] has k columns,
-            R = A[I, :] has k rows,
-            U is an ndarray or LinearOperator
-        so that
-            A \approx C @ U @ R.
-
-        Use oversampling parameter "over" in the sketching step.
-        """
         raise NotImplementedError()
 
 
+@misc.set_docstring(CURDecomposition.CALL_LEAD_DOC +
+    """  
+    Do this with a three-phase approach. The first phase uses randomized one-sided
+    ID and determines the quality of the approximation. The second phase uses 
+    deterministic full-rank one-sided ID based on QRCP. The third phase is to apply
+    a pseudo-inverse operation.
+    
+    The randomized phase obtains skeleton indices and the interpolative coefficient
+    matrix from an oversampled sketch of A. 
+    """ + (CURDecomposition.CALL_IO_DOC % """
+    p : int
+        Total number of passes over the full data matrix A. Use p - 1
+        passes as part of a power iteration method to help find a
+        more accurate solution. 
+    """) + CURDecomposition.BACKGROUND)
 def cur1(A, k, over, p, rng):
     rng = np.random.default_rng(rng)
     skop = osk.SkOpGA()
@@ -255,10 +356,17 @@ def cur1(A, k, over, p, rng):
 
 
 class CUR1(CURDecomposition):
+    """
+    Use a black-box randomized algorithm to compute a rank-k one-sided ID of A.
+    Next, use QRCP to find the remaining skeleton indices (i.e. the row skeleton
+    if the randomized algorithm computed a column ID).
+    Finally, compute the linking matrix U by applying a pseudo-inverse operation.
+    """
 
     def __init__(self, osid: OneSidedID):
         self.osid = osid
 
+    @misc.set_docstring(CURDecomposition.CALL_DOC + '')
     def __call__(self, A, k, over, rng):
         rng = np.random.default_rng(rng)
         if A.shape[0] > A.shape[1]:
