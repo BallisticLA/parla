@@ -9,67 +9,80 @@ import parla.comps.sketchers.oblivious as sko
 import parla.comps.preconditioning as rpc
 import parla.comps.determiter.saddle as dsad
 from parla.utils.timing import fast_timer
+import parla.utils.misc as misc
 from parla.comps.determiter.logging import SketchAndPrecondLog
 
 
 class OverLstsqSolver:
     """Solver for overdetermined least squares problems."""
 
+    TEMPLATE_DOC_STR = \
+    """
+    Return an approximate solution to
+
+        min{ ||A x - b||_2^2 + delta * ||x||_2^2 : x in R^n }.
+    %s
+    Parameters
+    ----------
+    A : Union[ndarray, spmatrix, LinearOperator]
+        Tall data matrix for overdetermined ordinary least squares.
+
+    b : ndarray
+        Right-hand-side. Should have b.ndim == 1.
+
+    delta : float
+        Nonnegative regularization parameter.
+
+    tol : float
+        %s
+
+    iter_lim : int
+        %s
+
+    rng : Union[None, int, SeedSequence, BitGenerator, Generator]
+        Determines the numpy Generator object that manages any and all
+        randomness in this function call.
+
+    Returns
+    -------
+    x_star : ndarray
+        x_star.shape == (A.shape[1],). Approximate solution to the least
+        squares problem under consideration.
+    %s
+    """
+
+    DOC_STR = TEMPLATE_DOC_STR % (
+    """
+    There is no requirement that an implementation is able to control
+    the error of its returned solution. Some implementations will produce
+    a solution by an iterative method. We can regard non-iterative
+    implementations as iterative methods that take only one step.
+    """,
+    """This parameter is only relevant for implementations that involve
+        some iterative method. Those implementations must have some kind
+        of error metric (e.g., backward error in the normal equations)
+        for a candidate solution. If the implementation's measurement of
+        error falls below tol, then it returns the candidate solution.
+    
+        If an implementation does not use an iterative method and receives
+        tol is not NaN, then a warning will be raised.""",
+    """We require iter_lim > 0. Typically, iter_lim << A.shape[1].
+        This parameter is only relevant for implementations that involve
+        some kind of iterative method. Those implementations must terminate
+        after iter_lim iterations.
+    
+        If an implementation does not use an iterative method and receives
+        iter_lim > 1, then a warning will be raised.""",
+    """
+    log : Union[dict, SketchAndPrecondLog]
+        If a dict, then log is keyed by strings. It contains runtime information.
+        If a SketchAndPrecondLog, then it contains runtime and error metric
+        information (refer to SketchAndPrecondLog docs for more info).
+    """
+    )
+
+    @misc.set_docstring(DOC_STR)
     def __call__(self, A, b, delta, tol, iter_lim, rng):
-        """
-        Return an approximate solution to
-            min{ ||A x - b||_2^2 + delta * ||x||_2^2 : x in R^n }.
-
-        There is no requirement that an implementation is able to control
-        the error of its returned solution. Some implementations will produce
-        a solution by an iterative method. We can regard non-iterative
-        implementations as iterative methods that take only one step.
-
-        Parameters
-        ----------
-        A : Union[ndarray, spmatrix, LinearOperator]
-            Tall data matrix for overdetermined ordinary least squares.
-
-        b : ndarray
-            Right-hand-side.
-
-        delta : float
-            Regularization parameter. Must be nonnegative.
-
-        tol : float
-            This parameter is only relevant for implementations that involve
-            some iterative method. Those implementations must have some kind
-            of error metric (e.g., backward error in the normal equations)
-            for a candidate solution. If the implementation's measurement of
-            error falls below tol, then it returns the candidate solution.
-
-            If an implementation does not use an iterative method and receives
-            tol is not NaN, then a warning will be raised.
-
-        iter_lim : int
-            We require iter_lim > 0. Typically, iter_lim << A.shape[1].
-            This parameter is only relevant for implementations that involve
-            some kind of iterative method. Those implementations must terminate
-            after iter_lim iterations.
-
-            If an implementation does not use an iterative method and receives
-            iter_lim > 1, then a warning will be raised.
-
-        rng : Union[None, int, SeedSequence, BitGenerator, Generator]
-            Determines the numpy Generator object that manages any and all
-            randomness in this function call.
-
-        Returns
-        -------
-        x_star : ndarray
-            x_star.shape == (A.shape[1],). Approximate solution to the least
-            squares problem under consideration.
-
-        log : Union[dict, SketchAndPrecondLog]
-            If a dict, then log is keyed by strings. It contains runtime information.
-            If a SketchAndPrecondLog, then it contains runtime and error metric
-            information (refer to SketchAndPrecondLog docs for more info).
-        """
         raise NotImplementedError()
 
 
@@ -91,6 +104,7 @@ def dim_checks(sampling_factor, n_rows, n_cols):
     return d
 
 
+#TODO: write docstring
 def sso1(A, b, delta, rng, sampling_factor=3, vec_nnz=8, lapack_driver='gelsd'):
     skop = sko.SkOpSJ(vec_nnz)
     alg = SSO1(skop, sampling_factor, lapack_driver, overwrite_sketch=True)
@@ -111,6 +125,19 @@ class SSO1(OverLstsqSolver):
      in [MT:2020, Sections 10.2 -- 10.3].
     """
 
+    CALL_DOC = OverLstsqSolver.TEMPLATE_DOC_STR % (
+        """
+    This is a one-shot method, suitable for finding only rough approximations.
+        """,
+        "Not processed. Set to NaN to avoid warning messages.",
+        "Not processed. Set to 1 to avoid warning messages.",
+        """
+    log : dict
+        log['time_sketch'] is the time spent sketching (A, b).
+        log['time_solve'] is the time spent solving the sketched problem.
+        """
+    )
+
     def __init__(self, sketch_op_gen, sampling_factor, lapack_driver=None,
                  overwrite_sketch=True):
         self.sketch_op_gen = sketch_op_gen
@@ -118,6 +145,7 @@ class SSO1(OverLstsqSolver):
         self.lapack_driver = lapack_driver
         self.overwrite_sketch = overwrite_sketch
 
+    @misc.set_docstring(CALL_DOC)
     def __call__(self, A, b, delta, tol, iter_lim, rng, logging=False):
         if not np.isnan(tol):
             msg = """
@@ -162,6 +190,7 @@ class SSO1(OverLstsqSolver):
         return x_ske, log
 
 
+#TODO: write docstring
 def spo1(A, b, delta, tol, iter_lim, rng, sampling_factor=3, vec_nnz=8):
     skop = sko.SkOpSJ(vec_nnz)
     alg = SPO1(skop, sampling_factor, smart_init=True)
@@ -170,7 +199,7 @@ def spo1(A, b, delta, tol, iter_lim, rng, sampling_factor=3, vec_nnz=8):
 
 class SPO1(OverLstsqSolver):
     """A sketch-and-precondition approach to overdetermined ordinary least
-    squares. This implementation uses the SVD to obtain the preconditioner
+    squares. This implementation uses the SVD to obtain the preconditioner,
     and it uses LSQR for the iterative method.
 
     Before starting LSQR, we run a basic sketch-and-solve (for free, given
@@ -192,12 +221,29 @@ class SPO1(OverLstsqSolver):
             zero vector and the result of sketch-and-solve.
     """
 
+    CALL_DOC = OverLstsqSolver.TEMPLATE_DOC_STR % (
+        """
+    This method can compute solutions to high accuracy. It computes the SVD of
+    a sketch of A, and then calls a preconditioned version of LSQR.
+        """,
+        """Termination criteria used by SciPy's LSQR implementation,
+        as applied to a preconditioned version of the problem.""",
+        "Maximum number of iterations allowed by SciPy's LSQR.",
+        """
+    log : SketchAndPrecondLog
+        Contains runtime and error metric information (refer to
+        SketchAndPrecondLog docs for more info).
+        """
+        #TODO: be clear about the meaning of "log"
+    )
+
     def __init__(self, sketch_op_gen, sampling_factor, smart_init):
         self.sketch_op_gen = sketch_op_gen
         self.sampling_factor = sampling_factor
         self.smart_init = smart_init
         self.iterative_solver = dsad.PcSS2()  # LSQR
 
+    @misc.set_docstring(CALL_DOC)
     def __call__(self, A, b, delta, tol, iter_lim, rng, logging=False):
         n_rows, n_cols = A.shape
         sqrt_delta = np.sqrt(delta)
@@ -247,6 +293,7 @@ class SPO1(OverLstsqSolver):
         return x_star, log
 
 
+#TODO: write docstring
 def spo3(A, b, delta, tol, iter_lim, rng, sampling_factor=3, vec_nnz=8, mode='qr'):
     skop = sko.SkOpSJ(vec_nnz)
     alg = SPO3(skop, sampling_factor, mode)
@@ -255,7 +302,7 @@ def spo3(A, b, delta, tol, iter_lim, rng, sampling_factor=3, vec_nnz=8, mode='qr
 
 class SPO3(OverLstsqSolver):
     """A sketch-and-precondition approach to overdetermined ordinary least
-    squares. This implementation uses QR or Cholesky to obtain the preconditioner
+    squares. This implementation uses QR or Cholesky to obtain the preconditioner,
     and it uses LSQR for the iterative method.
 
     Before starting LSQR, we run a basic sketch-and-solve (for free, given
@@ -292,12 +339,30 @@ class SPO3(OverLstsqSolver):
             arithmetic but have different numerical profiles.)
     """
 
+    CALL_DOC = OverLstsqSolver.TEMPLATE_DOC_STR % (
+        """
+    This method can compute solutions to high accuracy. It computes the unpivoted
+    QR decomposition of a A (or Cholesky of a sketched Gram matrix), and then calls
+    a preconditioned version of LSQR.
+        """,
+        """Termination criteria used by SciPy's LSQR implementation,
+        as applied to a preconditioned version of the problem.""",
+        "Maximum number of iterations allowed by SciPy's LSQR.",
+        """
+    log : SketchAndPrecondLog
+        Contains runtime and error metric information (refer to
+        SketchAndPrecondLog docs for more info).
+        """
+        #TODO: be clearer about the meanining of "log"
+    )
+
     def __init__(self, sketch_op_gen, sampling_factor: int, mode='qr'):
         self.sketch_op_gen = sketch_op_gen
         self.sampling_factor = sampling_factor
         self.mode = mode
         self.iterative_solver = dsad.PcSS2()  # implements LSQR
 
+    @misc.set_docstring(CALL_DOC)
     def __call__(self, A, b, delta, tol, iter_lim, rng, logging=False):
         n_rows, n_cols = A.shape
         sqrt_delta = np.sqrt(delta)
@@ -368,6 +433,7 @@ class UnderLstsqSolver:
         raise NotImplementedError()
 
 
+#TODO: write docstring
 def spu1(A, c, tol, iter_lim, rng, sampling_factor=3, vec_nnz=8):
     skop = sko.SkOpSJ(vec_nnz)
     alg = SPU1(skop, sampling_factor)
