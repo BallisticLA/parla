@@ -29,7 +29,7 @@ class OneSidedID:
         Perform internal calculations with a sketch of rank (k + over).
         This is usually a small constant, e.g., 5 to 25. In some situations
         it's useful to set over = k.
-
+    %s
     axis : int
         0 for a row ID, 1 for a column ID
 
@@ -70,11 +70,21 @@ class OneSidedID:
 
     CALL_DOC = CALL_LEAD_DOC + CALL_IO_DOC + BACKGROUND
 
-    @misc.set_docstring(CALL_DOC)
+    @misc.set_docstring(CALL_DOC % '')
     def __call__(self, A, k, over, axis, rng):
         raise NotImplementedError()
 
 
+@misc.set_docstring("""
+    Return a rank-k RowID (axis=0) or ColumnID (axis=1) of A.
+    Construct the skeleton indices and interpolative coefficient
+    matrix by QRCP on a sketch of A.
+    """ + (
+        OneSidedID.CALL_IO_DOC % """
+    p : int
+        Total number of passes over A. Use p - 1 passes as part of a
+        power iteration method to help find a more accurate solution. 
+    """) + OneSidedID.BACKGROUND)
 def osid1(A, k, over, p, axis, rng):
     rng = np.random.default_rng(rng)
     skop = osk.SkOpGA()
@@ -94,7 +104,7 @@ class OSID1(OneSidedID):
     def __init__(self, sk_op: RowSketcher):
         self.sk_op = sk_op
 
-    @misc.set_docstring(OneSidedID.CALL_DOC)
+    @misc.set_docstring(OneSidedID.CALL_DOC % '')
     def __call__(self, A, k, over, axis, rng):
         rng = np.random.default_rng(rng)
         if axis == 0:
@@ -113,6 +123,17 @@ class OSID1(OneSidedID):
             raise ValueError()
 
 
+@misc.set_docstring("""
+    Return a rank-k RowID (axis=0) or ColumnID (axis=1) of A.
+    Construct the skeleton indices by QRCP of a sketch of A,
+    then compute the interpolative coefficient matrix by a
+    pseudo-inverse operation.
+    """ + (
+        OneSidedID.CALL_IO_DOC % """
+    p : int
+        Total number of passes over A. Use p - 1 passes as part of a
+        power iteration method to help find a more accurate solution. 
+    """) + OneSidedID.BACKGROUND)
 def osid2(A, k, over, p, axis, rng):
     rng = np.random.default_rng(rng)
     skop = osk.SkOpGA()
@@ -132,7 +153,7 @@ class OSID2(OneSidedID):
     def __init__(self, sk_op: RowSketcher):
         self.sk_op = sk_op
 
-    @misc.set_docstring(OneSidedID.CALL_DOC)
+    @misc.set_docstring(OneSidedID.CALL_DOC % '')
     def __call__(self, A, k, over, axis, rng):
         rng = np.random.default_rng(rng)
         if axis == 0:
