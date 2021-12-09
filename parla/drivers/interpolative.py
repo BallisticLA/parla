@@ -39,11 +39,11 @@ class OneSidedID:
 
     Returns
     -------
-    idxs : ndarray
-        Skeleton indices
-
     mat : ndarray
         Interpolative coefficient matrix
+
+    idxs : ndarray
+        Skeleton indices
     """
 
     BACKGROUND = \
