@@ -4,7 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-# [0.1.3] - superceded on Dec 10, 2021
+# [0.1.4] - working version
+## Added
+ - drivers: SPO combines the functionality from SPO1 and SPO3
+## Removed
+ - drivers: SPO1 and SPO3
+ 
+# [0.1.3] - superseded on Dec 10, 2021
 ## Added
  - Procedural interfaces to drivers (mostly undocumented).
  - Tons of documentation.
@@ -19,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Changed
  - Package name changes from rlapy to parla.
  - drivers: CURD1 is now CUR2.
- - drivers: SPO3 defaults to obtaining the preconditioner by QR, but has the option of using Cholesky.
+ - drivers: SPO defaults to obtaining the preconditioner by QR, but has the option of using Cholesky.
 
 # [0.1.1] - superseded on Nov 3, 2021
 ## Added
@@ -34,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Changed
  - drivers: class names for least squares
     * "SPO": Sketch-and-Precondition for Overdetermined least squares
-    * SAS1 --> SPO3 (name used in the design doc)
+    * SAS1 --> SPO (name used in the design doc)
     * SAS2 --> SPO1 (name used in the design doc)
  - drivers: least squares solvers return two values: a vector (for x) and a dict (for a log).
  - comps: renamed QBFactorizer to QBDecomposer (similarly for TestQBFactorizer)

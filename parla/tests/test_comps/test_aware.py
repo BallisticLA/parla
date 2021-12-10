@@ -1,6 +1,7 @@
 import unittest
 import parla.comps.sketchers.aware as aware
 import numpy as np
+import scipy.linalg as la
 import parla.comps.sketchers.oblivious as skob
 import parla.utils.linalg_wrappers as ulaw
 import parla.utils.stats as ustats
@@ -73,10 +74,10 @@ class TestPRSO1(unittest.TestCase):
                     rng = np.random.default_rng(1)
                     ps.num_pass = num_pass
                     vec = ps(A, 1, rng)
-                    vec /= np.linalg.norm(vec, ord=2)
+                    vec /= la.norm(vec, ord=2)
                     ATAvec = A.T @ (A @ vec)
-                    eigval_gaps[i] = 1 - np.linalg.norm(ATAvec, ord=2)
-                    eigvec_gaps[i] = np.linalg.norm(ATAvec - vec, ord=2)
+                    eigval_gaps[i] = 1 - la.norm(ATAvec, ord=2)
+                    eigvec_gaps[i] = la.norm(ATAvec - vec, ord=2)
                 # Next, we check for linear convergence of error in the
                 # approximation of the top eigenpair. The specific test
                 # looks at the r-squared of a log-linear fit of "passes"
