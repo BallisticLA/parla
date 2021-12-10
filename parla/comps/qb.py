@@ -87,7 +87,7 @@ def qb_b(inner_num_pass, blk, overwrite_A, A, k, tol, rng):
     Iteratively build an approximate QB factorization of A,
     which terminates once either of the following conditions
     is satisfied
-        (1)  || A - Q B ||_Fro <= tol * || A ||_Fro
+        (1)  || A - Q B ||_F <= tol * || A ||_F
     or
         (2) Q has k columns.
 
@@ -116,7 +116,7 @@ def qb_b(inner_num_pass, blk, overwrite_A, A, k, tol, rng):
         valid way of ensuring Q.shape[1] == k on exit.
 
     tol : float
-        Terminate if ||A - Q B||_Fro <= tol * || A ||_Fro. Setting k = min(A.shape)
+        Terminate if ||A - Q B||_F <= tol * || A ||_F. Setting k = min(A.shape)
         is a valid way to ensure that this is the exit condition.
 
     rng : Union[None, int, SeedSequence, BitGenerator, Generator]
@@ -172,7 +172,7 @@ def qb_b_pe(num_passes, blk, A, k, tol, rng):
     Iteratively build an approximate QB factorization of A,
     which terminates once either of the following conditions
     is satisfied
-        (1) || A - Q B ||_Fro <= tol * || A ||_Fro
+        (1) || A - Q B ||_F <= tol * || A ||_F
     or
         (2) Q has k columns.
 
@@ -199,7 +199,7 @@ def qb_b_pe(num_passes, blk, A, k, tol, rng):
         Terminate if Q.shape[1] == k.
 
     tol : float
-        Terminate if ||A - Q B||_Fro <= tol * || A ||_Fro.
+        Terminate if ||A - Q B||_F <= tol * || A ||_F.
 
     rng : Union[None, int, SeedSequence, BitGenerator, Generator]
         Determines the numpy Generator object that manages randomness
@@ -323,8 +323,9 @@ class QB1(QBDecomposer):
             This parameter is passed directly to the rangefinder.
 
         tol : float
-            Target for the error ||A - Q B||: 0 <= tol < np.inf.
-            This parameter is passed directly to the rangefinder.
+            Target for the relative error ||A - Q B|| / || A ||.
+            This parameter is passed directly to the rangefinder
+            (and which determines its precise interpretation).
             Note that since we construct B := Q.T @ A, we have
             ||A - Q B|| = ||A  - Q Q' A||.
 
@@ -356,7 +357,7 @@ class QB2(QBDecomposer):
     Common uses of a QB2 object "qb_alg"
 
         qb_alg(A, min(A.shape), tol, rng) will return
-        an approximation (Q, B) where ||A - Q B ||_Fro <= tol * ||A||_Fro.
+        an approximation (Q, B) where ||A - Q B ||_F <= tol * ||A||_F.
 
         qb_alg(A, k, 0.0, rng) will return (Q, B)
         where Q has k columns.
@@ -375,11 +376,11 @@ class QB2(QBDecomposer):
         and rows to B. The algorithm modifies A in-place. If
         self.overwrite_a = False, then a copy of A is made at the start
         of this function call. We start by initializing Q, B with shapes
-        (A.shape[0], 0) and (0, A.shape[1]), setting abs_tol = ||A||_Fro * tol,
+        (A.shape[0], 0) and (0, A.shape[1]), setting abs_tol = ||A||_F * tol,
         and we roughly proceed as follows
 
             cur_blk = min(k - Q.shape[1], self.blk)
-            if cur_blk == 0 or ||A||_Fro <= abs_tol:
+            if cur_blk == 0 or ||A||_F <= abs_tol:
                 return Q, B
             Qi = rangefinder(A, cur_blk, 0.0, rng)
             Bi = Qi.T @ A
@@ -403,10 +404,10 @@ class QB2(QBDecomposer):
             on exit.
 
         tol : float
-            Target for the relative error  ||A - Q B||_Fro / ||A||_Fro:
+            Target for the relative error  ||A - Q B||_F / ||A||_F:
             0 <= tol < 1. If the relative error drops below  tol,
             then return (Q, B). Setting k = min(A.shape) is a valid way
-            of ensuring ||A - Q B||_Fro / ||A||_Fro <= tol on exit.
+            of ensuring ||A - Q B||_F / ||A||_F <= tol on exit.
 
         rng : Union[None, int, SeedSequence, BitGenerator, Generator]
             Determines the numpy Generator object that manages any and all
@@ -511,7 +512,7 @@ class QB3(QBDecomposer):
             inequality k < min(A.shape).
 
         tol : float
-            Early-stopping target for the error relative ||A - Q B||_Fro / || A ||_Fro.
+            Early-stopping target for the relative error ||A - Q B||_F / || A ||_F.
             If the relative error falls below tol, then return (Q, B).
             There is no way of ensuring that this target is achieved. Setting tol=0
             skips the computations that are typically necessary for monitoring
@@ -550,7 +551,7 @@ class QB3(QBDecomposer):
 
         Subspace iteration can be used to implement a RowSketcher's
         "__call__" function, but that is not the only possible implementation.
-        Refer the the RowSketcher interface for more information.
+        Refer to the RowSketcher interface for more information.
         """
         assert k > 0
         assert k < min(A.shape)
