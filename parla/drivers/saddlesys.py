@@ -4,9 +4,10 @@ from typing import Union
 import parla.comps.determiter.saddle as dsad
 import parla.comps.preconditioning as rpc
 import parla.comps.sketchers.oblivious as sko
-from parla.drivers.least_squares import dim_checks
+from parla.drivers.least_squares import dim_checks, OverLstsqSolver
 from parla.comps.determiter.logging import SketchAndPrecondLog
 from parla.utils.timing import fast_timer
+import parla.utils.misc as misc
 
 
 NoneType = type(None)
@@ -14,6 +15,57 @@ NoneType = type(None)
 
 class SaddleSolver:
 
+    TEMPLATE_DOC_STR = \
+    """
+    Given a tall m-by-n data matrix A, an m-vector b, an n-vector c, and a
+    nonnegative scalar delta, compute an approximate solution to the linear system
+    
+             [  I   |     A   ] [y_opt] = [b]           (*)
+             [  A'  | -delta*I] [x_opt]   [c].
+    
+    The x_opt component of solutions to (*) is characterized by the normal equations
+    
+            (A' A + delta * I) x_opt = A'b - c.         (**)      
+    %s
+    Parameters
+    ----------
+    A : Union[ndarray, spmatrix, LinearOperator]
+        Tall data matrix.
+
+    b : ndarray
+        Long block vector in the right-hand-side. Should have b.shape = (m,).
+        
+    c : ndarray
+        Short block vector in the right-hand-side. Should have c.shape = (n,).
+
+    delta : float
+        Nonnegative regularization parameter.
+
+    tol : float
+        %s
+
+    iter_lim : int
+        %s
+
+    rng : Union[None, int, SeedSequence, BitGenerator, Generator]
+        Determines the numpy Generator object that manages any and all
+        randomness in this function call.
+
+    Returns
+    -------
+    x_approx : ndarray
+        x_approx.shape == (n,). Short block in the solution to (*).
+    
+    y_approx : ndarray
+        y_approx.shape == (m,). Long block in the solution to (*).
+    %s
+    """
+
+    INTERFACE_FIELDS = OverLstsqSolver.INTERFACE_FIELDS
+
+    DOC_STR = TEMPLATE_DOC_STR % INTERFACE_FIELDS
+
+    @misc.set_docstring(DOC_STR)
     def __call__(self, A, b, c, delta, tol, iter_lim, rng, logging):
         raise NotImplementedError()
 
@@ -31,6 +83,27 @@ def sps(A, b, c, delta, tol, iter_lim, rng, sampling_factor=3, vec_nnz=8, method
 
 
 class SPS1(SaddleSolver):
+    """
+    SVD-based sketch-and-precondition for solving saddle point systems.
+    """
+
+    INTERFACE_FIELDS = (
+        """
+    This method can compute solutions to high accuracy. It computes the SVD of
+    a sketch of A, and then calls SciPy's implementation of preconditioned 
+    conjugate gradients (PCG).
+        """,
+        "Termination criteria used by SciPy's PCG implementation.",
+        "Maximum number of iterations allowed by SciPy's PCG.",
+        """
+    log : SketchAndPrecondLog
+        Contains runtime and error metric information (refer to
+        SketchAndPrecondLog docs for more info).
+        """
+        #TODO: be clear about the meaning of "log"
+    )
+
+    DOC_STR = SaddleSolver.TEMPLATE_DOC_STR % INTERFACE_FIELDS
 
     def __init__(self, sketch_op_gen,
                  sampling_factor: int,
@@ -42,6 +115,7 @@ class SPS1(SaddleSolver):
         self.iterative_solver = iterative_solver
         pass
 
+    @misc.set_docstring(DOC_STR)
     def __call__(self, A, b, c, delta, tol, iter_lim, rng, logging=False):
         m, n = A.shape
         sqrt_delta = np.sqrt(delta)
@@ -100,6 +174,28 @@ class SPS1(SaddleSolver):
 
 
 class SPS2(SaddleSolver):
+    """Sketch, reduced to overdetermined least squares, and precondition.
+    Use SVD to obtain the preconditioner and LSQR as the iterative solver."""
+
+    INTERFACE_FIELDS = (
+        """
+    This method can compute solutions to high accuracy. It starts by computing the
+    SVD of a sketch of A. It uses that SVD to convert the saddle point system into 
+    an equivalent overdetermined least squares problem, and then it solves that
+    problem by a preconditioned version of LSQR.
+        """,
+        """Termination criteria used by SciPy's LSQR implementation,
+        as applied to a preconditioned version of the problem.""",
+        "Maximum number of iterations allowed by SciPy's LSQR.",
+        """
+    log : SketchAndPrecondLog
+        Contains runtime and error metric information (refer to
+        SketchAndPrecondLog docs for more info).
+        """
+        #TODO: be clear about the meaning of "log"
+    )
+
+    DOC_STR = SaddleSolver.TEMPLATE_DOC_STR % INTERFACE_FIELDS
 
     def __init__(self, sketch_op_gen,
                  sampling_factor: int,
@@ -111,6 +207,7 @@ class SPS2(SaddleSolver):
         self.iterative_solver = iterative_solver
         pass
 
+    @misc.set_docstring(DOC_STR)
     def __call__(self, A, b, c, delta, tol, iter_lim, rng, logging=False):
         m, n = A.shape
         sqrt_delta = np.sqrt(delta)

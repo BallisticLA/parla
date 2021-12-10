@@ -51,12 +51,11 @@ class OverLstsqSolver:
     %s
     """
 
+    #NOTE: the strings below are also used in UnderLstsqSolver and SaddleSolver.
     INTERFACE_FIELDS = (
     """
     There is no requirement that an implementation is able to control
-    the error of its returned solution. Some implementations will produce
-    a solution by an iterative method. We can regard non-iterative
-    implementations as iterative methods that take only one step.
+    the error of its returned solution.
     """,
     """This parameter is only relevant for implementations that involve
         some iterative method. Those implementations must have some kind
