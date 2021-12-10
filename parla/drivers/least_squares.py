@@ -432,8 +432,16 @@ class SPU1(UnderLstsqSolver):
         """
     This method can compute solutions to high accuracy. It computes the SVD of
     a sketch of A, and then calls a preconditioned version of LSQR.
-        """,) + SPO.INTERFACE_FIELDS[1:]
-    # ^ They happen to be shared with an overdetermined solver
+        """,) + SPO.INTERFACE_FIELDS[1:3] + (
+        """
+    log : SketchAndPrecondLog
+        Contains runtime and per-iterate error metric information.
+        The error of an individual iterate y_i is measured as\n
+                || (Ap) (Ap)' y_i - (Ap) c ||_2,\n
+        where "Ap" is a right-preconditioned version of A. Under typical
+        parameter settings, the condition number of Ap is <= 10.
+        Run help(log) or help(SketchAndPrecondLog) for more information.
+        """,)
 
     CALL_DOC = UnderLstsqSolver.TEMPLATE_DOC_STR % INTERFACE_FIELDS
 
