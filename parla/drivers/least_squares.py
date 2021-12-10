@@ -396,6 +396,10 @@ class SPO3(OverLstsqSolver):
             G[cols, rows] = G[rows, cols]
             R = la.cholesky(G, overwrite_a=True, check_finite=False)
             Q = None
+        elif self.mode == 'svd':
+            if delta > 0:
+                A_ske = np.vstack((A_ske, sqrt_delta * np.eye(n_cols)))
+            R, U, sigma, Vh = rpc.svd_right_precond(A_ske)
         else:
             raise ValueError()
         log.time_factor = quick_time() - tic
@@ -403,11 +407,15 @@ class SPO3(OverLstsqSolver):
         # Sketch-and-solve type preprocessing
         tic = quick_time()
         b_ske = S @ b
-        if Q is not None:
+        if self.mode == 'qr':
             z_ske = Q[:d, :].T @ b_ske
-        else:
+            x_ske = la.solve_triangular(R, z_ske, lower=False)
+        elif self.mode == 'chol':
             z_ske = la.solve_triangular(R, A_ske.T @ b_ske, lower=False, trans='T')
-        x_ske = la.solve_triangular(R, z_ske, lower=False)
+            x_ske = la.solve_triangular(R, z_ske, lower=False)
+        else:  # svd
+            z_ske = U[:d, :].T @ b_ske
+            x_ske = R @ z_ske
         r = A @ x_ske - b
         if delta > 0:
             r = np.concatenate((r, sqrt_delta * x_ske))
@@ -417,12 +425,16 @@ class SPO3(OverLstsqSolver):
 
         # Iterative phase
         tic = quick_time()
-        res = self.iterative_solver(A, b, None, delta, tol, iter_lim, R, True, z_ske)
+        tri = self.mode in {'qr', 'chol'}
+        res = self.iterative_solver(A, b, None, delta, tol, iter_lim, R, tri, z_ske)
         log.time_iterate = quick_time() - tic
 
         if logging:
             ar0 = A.T @ b
-            ar0 = la.solve_triangular(R, ar0, 'T', lower=False, overwrite_b=True)
+            if tri:
+                ar0 = la.solve_triangular(R, ar0, 'T', lower=False, overwrite_b=True)
+            else:
+                ar0 = R.T @ ar0
             log.wrap_up(res[2], la.norm(ar0))
             log.error_desc = self.iterative_solver.ERROR_METRIC_INFO
 

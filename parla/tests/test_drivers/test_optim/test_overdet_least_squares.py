@@ -356,6 +356,54 @@ class TestSPO3(TestOverLstsqSolver):
         sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=3, mode='chol')
         self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
 
+    def test_srct_svd(self):
+        sap = rlsq.SPO3(oblivious.SkOpTC(), sampling_factor=2, mode='svd')
+        ath = inconsistent_gen()
+        self._test_convergence_rate(ath, sap, ridge=False)
+        self._test_convergence_rate(ath, sap, ridge=True)
+        ath = inconsistent_stackid()
+        self._test_convergence_rate(ath, sap, ridge=False)
+        pass
+
+    def test_gaussian_svd(self):
+        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=2, mode='svd')
+        ath = inconsistent_gen()
+        self._test_convergence_rate(ath, sap, ridge=False)
+        self._test_convergence_rate(ath, sap, ridge=True)
+        ath = inconsistent_stackid()
+        self._test_convergence_rate(ath, sap, ridge=False)
+        pass
+
+    def test_sjlt_svd(self):
+        sap = rlsq.SPO3(oblivious.SkOpSJ(vec_nnz=8), sampling_factor=2, mode='svd')
+        ath = inconsistent_gen()
+        self._test_convergence_rate(ath, sap, ridge=False)
+        self._test_convergence_rate(ath, sap, ridge=True)
+        ath = inconsistent_stackid()
+        self._test_convergence_rate(ath, sap, ridge=False)
+        pass
+
+    def test_consistent_tall_svd(self):
+        ath = consistent_tall()
+        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=1, mode='svd')
+        self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
+
+    def test_consistent_square_svd(self):
+        ath = consistent_square()
+        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=1, mode='svd')
+        self.run_consistent(ath, sap, 0.0, 1, 1e-10, self.SEEDS)
+        # ^ Slightly lower tolerance than consistent_tall_chol
+
+    def test_inconsistent_orth_svd(self):
+        ath = inconsistent_orthog()
+        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=3, mode='svd')
+        self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
+
+    def test_inconsistent_gen_svd(self):
+        ath = inconsistent_gen()
+        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=3, mode='svd')
+        self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
+
 
 class TestSPO1(TestOverLstsqSolver):
     """
