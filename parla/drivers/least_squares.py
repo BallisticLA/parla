@@ -18,14 +18,14 @@ class OverLstsqSolver:
 
     TEMPLATE_DOC_STR = \
     """
-    Return an approximate solution to
+    Given a tall m-by-n data matrix A, return an approximate solution to
 
         min{ ||A x - b||_2^2 + delta * ||x||_2^2 : x in R^n }.
     %s
     Parameters
     ----------
     A : Union[ndarray, spmatrix, LinearOperator]
-        Tall data matrix for overdetermined ordinary least squares.
+        Tall data matrix.
 
     b : ndarray
         Right-hand-side. Should have b.ndim == 1.
@@ -46,12 +46,12 @@ class OverLstsqSolver:
     Returns
     -------
     x_star : ndarray
-        x_star.shape == (A.shape[1],). Approximate solution to the least
+        x_star.shape == (n,). Approximate solution to the least
         squares problem under consideration.
     %s
     """
 
-    DOC_STR = TEMPLATE_DOC_STR % (
+    INTERFACE_FIELDS = (
     """
     There is no requirement that an implementation is able to control
     the error of its returned solution. Some implementations will produce
@@ -60,13 +60,12 @@ class OverLstsqSolver:
     """,
     """This parameter is only relevant for implementations that involve
         some iterative method. Those implementations must have some kind
-        of error metric (e.g., backward error in the normal equations)
-        for a candidate solution. If the implementation's measurement of
-        error falls below tol, then it returns the candidate solution.
+        of error metric for a candidate solution. If the implementation's
+        measurement of error falls below tol, then it returns the candidate solution.
     
         If an implementation does not use an iterative method and receives
-        tol is not NaN, then a warning will be raised.""",
-    """We require iter_lim > 0. Typically, iter_lim << A.shape[1].
+        tol that is is not NaN, then a warning will be raised.""",
+    """We require iter_lim > 0. Typically, iter_lim << n.
         This parameter is only relevant for implementations that involve
         some kind of iterative method. Those implementations must terminate
         after iter_lim iterations.
@@ -80,6 +79,8 @@ class OverLstsqSolver:
         information (refer to SketchAndPrecondLog docs for more info).
     """
     )
+
+    DOC_STR = TEMPLATE_DOC_STR % INTERFACE_FIELDS
 
     @misc.set_docstring(DOC_STR)
     def __call__(self, A, b, delta, tol, iter_lim, rng):
@@ -125,7 +126,7 @@ class SSO1(OverLstsqSolver):
      in [MT:2020, Sections 10.2 -- 10.3].
     """
 
-    CALL_DOC = OverLstsqSolver.TEMPLATE_DOC_STR % (
+    INTERFACE_FIELDS = (
         """
     This is a one-shot method, suitable for finding only rough approximations.
         """,
@@ -137,6 +138,8 @@ class SSO1(OverLstsqSolver):
         log['time_solve'] is the time spent solving the sketched problem.
         """
     )
+
+    CALL_DOC = OverLstsqSolver.TEMPLATE_DOC_STR % INTERFACE_FIELDS
 
     def __init__(self, sketch_op_gen, sampling_factor, lapack_driver=None,
                  overwrite_sketch=True):
@@ -221,7 +224,8 @@ class SPO1(OverLstsqSolver):
             zero vector and the result of sketch-and-solve.
     """
 
-    CALL_DOC = OverLstsqSolver.TEMPLATE_DOC_STR % (
+    # NOTE: the fields below are also used by an underdetermined solver
+    INTERFACE_FIELDS = (
         """
     This method can compute solutions to high accuracy. It computes the SVD of
     a sketch of A, and then calls a preconditioned version of LSQR.
@@ -236,6 +240,8 @@ class SPO1(OverLstsqSolver):
         """
         #TODO: be clear about the meaning of "log"
     )
+
+    CALL_DOC = OverLstsqSolver.TEMPLATE_DOC_STR % INTERFACE_FIELDS
 
     def __init__(self, sketch_op_gen, sampling_factor, smart_init):
         self.sketch_op_gen = sketch_op_gen
@@ -339,7 +345,7 @@ class SPO3(OverLstsqSolver):
             arithmetic but have different numerical profiles.)
     """
 
-    CALL_DOC = OverLstsqSolver.TEMPLATE_DOC_STR % (
+    INTERFACE_FIELDS = (
         """
     This method can compute solutions to high accuracy. It computes the unpivoted
     QR decomposition of a A (or Cholesky of a sketched Gram matrix), and then calls
@@ -355,6 +361,8 @@ class SPO3(OverLstsqSolver):
         """
         #TODO: be clearer about the meanining of "log"
     )
+
+    CALL_DOC = OverLstsqSolver.TEMPLATE_DOC_STR % INTERFACE_FIELDS
 
     def __init__(self, sketch_op_gen, sampling_factor: int, mode='qr'):
         self.sketch_op_gen = sketch_op_gen
@@ -426,10 +434,48 @@ class SPO3(OverLstsqSolver):
 
 
 class UnderLstsqSolver:
-    """Solver for underdetermined least squares problems"""
+    TEMPLATE_DOC_STR = """
+    Given a tall m-by-n matrix A and an n-vector c, compute an approximate
+    solution to
 
+        min ||y||
+        s.t. A' y = c.
+
+    If the solution is computed to low accuracy, then the equality
+    constraint "A' y = c" might be violated by a large margin.
+    %s
+    Parameters
+    ----------
+    A : Union[ndarray, spmatrix, LinearOperator]
+        Tall data matrix, where A' specifies an underdetermined least-squares problem.
+
+    c : ndarray
+        Right-hand-side. Should have c.ndim == 1.
+
+    tol : float
+        %s
+
+    iter_lim : int
+        %s
+
+    rng : Union[None, int, SeedSequence, BitGenerator, Generator]
+        Determines the numpy Generator object that manages any and all
+        randomness in this function call.
+
+    Returns
+    -------
+    y_star : ndarray
+        y_star.shape == (m,). Approximate solution to the underdetermined
+        least squares problem under consideration.
+    %s
+    """
+
+    INTERFACE_FIELDS = ('',) + OverLstsqSolver.INTERFACE_FIELDS[1:]
+
+    DOC_STR = TEMPLATE_DOC_STR % INTERFACE_FIELDS
+
+    @misc.set_docstring(DOC_STR)
     def __call__(self, A, c, tol, iter_lim, rng, logging=False):
-        """TODO: write docstring"""
         raise NotImplementedError()
 
 
@@ -442,37 +488,26 @@ def spu1(A, c, tol, iter_lim, rng, sampling_factor=3, vec_nnz=8):
 
 class SPU1(UnderLstsqSolver):
     """
-    SVD-based sketch-and-precondition for underdetermined least squares.
-    We parameterize underdetermined least squares with a tall m-by-n
+    SVD-based sketch-and-precondition for underdetermined least-squares.
+    We parameterize underdetermined least-squares with a tall m-by-n
     data matrix A and an n-vector c. In full generality, this algorithm
     finds an m-vector y that approximately minimizes
 
         ||y - pinv(A') c||_2.
-
-    If the solution is computed to high accuracy, then it will solve
-
-        min ||y||
-        s.t. A' y = c.
-
-    If the solution is computed to low accuracy, then the equality
-    constraint "A' y = c" might be violated by a large margin.
-
-    #TODO: write proper docstring
     """
 
-    ERROR_METRIC_INFO = """
-        || Ap (Ap)' y - (Ap) c ||_2, where "Ap" is a right-preconditioned
-        version of A. Under typical parameter settings, the condition 
-        number of Ap is <= 10.
-    """
+    INTERFACE_FIELDS = SPO1.INTERFACE_FIELDS
+    # ^ They happen to be shared with an overdetermined solver
+
+    CALL_DOC = UnderLstsqSolver.TEMPLATE_DOC_STR % INTERFACE_FIELDS
 
     def __init__(self, sketch_op_gen, sampling_factor: int):
         self.sketch_op_gen = sketch_op_gen
         self.sampling_factor = sampling_factor
         self.iterative_solver = dsad.PcSS2()  # implements LSQR
 
+    @misc.set_docstring(CALL_DOC)
     def __call__(self, A, c, tol, iter_lim, rng, logging=False):
-        """TODO: write docstring"""
         n_rows, n_cols = A.shape
         d = dim_checks(self.sampling_factor, n_rows, n_cols)
         rng = np.random.default_rng(rng)
@@ -500,7 +535,12 @@ class SPU1(UnderLstsqSolver):
 
         if logging:
             log.wrap_up(res[2], la.norm(A @ (M @ c)))
-            log.error_desc = self.ERROR_METRIC_INFO
+            log.error_desc = """
+            The logs produced by this algorithm measure error as\n
+                || Ap (Ap)' y - (Ap) c ||_2,\n
+            where "Ap" is a right-preconditioned version of A. Under typical
+            parameter settings, the condition number of Ap is <= 10.
+            """
 
         return y_star, log
 
