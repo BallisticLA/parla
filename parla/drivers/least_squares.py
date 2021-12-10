@@ -266,10 +266,13 @@ class SPO(OverLstsqSolver):
         "Maximum number of iterations allowed by SciPy's LSQR.",
         """
     log : SketchAndPrecondLog
-        Contains runtime and error metric information (refer to
-        SketchAndPrecondLog docs for more info).
+        Contains runtime and per-iterate error metric information.
+        The error of an individual iterate x_i is measured as\n
+                || (Ap)' (Ap) x_i - (Ap)' b ||_2,\n
+        where "Ap" is a right-preconditioned version of A. Under typical
+        parameter settings, the condition number of Ap is <= 10.
+        Run help(log) or help(SketchAndPrecondLog) for more information.
         """
-        #TODO: be clearer about the meanining of "log"
     )
 
     CALL_DOC = OverLstsqSolver.TEMPLATE_DOC_STR % INTERFACE_FIELDS
