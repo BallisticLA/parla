@@ -238,7 +238,7 @@ class EVD1(EVDecomposer):
         tol : float
             Relative target accuracy for the oversampled approximation of A.
             If k = n and over = 0, then we should have
-            ||A - A_approx||_Fro / || A ||_Fro <= tol.
+            ||A - A_approx||_F / || A ||_F <= tol.
             
         over : int
             Perform internal calculations using a sketch of rank k + over.
