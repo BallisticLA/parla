@@ -192,131 +192,32 @@ class SSO1(OverLstsqSolver):
 #TODO: write docstring
 def spo1(A, b, delta, tol, iter_lim, rng, sampling_factor=3, vec_nnz=8):
     skop = sko.SkOpSJ(vec_nnz)
-    alg = SPO1(skop, sampling_factor, smart_init=True)
+    alg = SPO(skop, sampling_factor, mode='svd')
     return alg(A, b, delta, tol, iter_lim, rng, logging=True)
-
-
-class SPO1(OverLstsqSolver):
-    """A sketch-and-precondition approach to overdetermined ordinary least
-    squares. This implementation uses the SVD to obtain the preconditioner,
-    and it uses LSQR for the iterative method.
-
-    Before starting LSQR, we run a basic sketch-and-solve (for free, given
-    our SVD of the sketched data matrix) to obtain a solution x_ske.
-    If ||A x_ske - b||_2 < ||b||_2, then we initialize LSQR at x_ske.
-
-    This implementation does not require that A is full-rank.
-
-    References
-    ----------
-    This implementation was inspired by LSRN. The differences relative to the
-    official LSRN algorithm [MSM:2014, Algorithm 1] are
-
-        (1) We make no assumption on the distribution of the sketching operator.
-            LSRN uses a Gaussian sketching operator.
-
-        (2) We provide the option of intelligently initializing the iterative
-            solver (LSQR) with the better of the two solutions given by the
-            zero vector and the result of sketch-and-solve.
-    """
-
-    # NOTE: the fields below are also used by an underdetermined solver
-    INTERFACE_FIELDS = (
-        """
-    This method can compute solutions to high accuracy. It computes the SVD of
-    a sketch of A, and then calls a preconditioned version of LSQR.
-        """,
-        """Termination criteria used by SciPy's LSQR implementation,
-        as applied to a preconditioned version of the problem.""",
-        "Maximum number of iterations allowed by SciPy's LSQR.",
-        """
-    log : SketchAndPrecondLog
-        Contains runtime and error metric information (refer to
-        SketchAndPrecondLog docs for more info).
-        """
-        #TODO: be clear about the meaning of "log"
-    )
-
-    CALL_DOC = OverLstsqSolver.TEMPLATE_DOC_STR % INTERFACE_FIELDS
-
-    def __init__(self, sketch_op_gen, sampling_factor, smart_init):
-        self.sketch_op_gen = sketch_op_gen
-        self.sampling_factor = sampling_factor
-        self.smart_init = smart_init
-        self.iterative_solver = dsad.PcSS2()  # LSQR
-
-    @misc.set_docstring(CALL_DOC)
-    def __call__(self, A, b, delta, tol, iter_lim, rng, logging=False):
-        n_rows, n_cols = A.shape
-        sqrt_delta = np.sqrt(delta)
-        d = dim_checks(self.sampling_factor, n_rows, n_cols)
-        rng = np.random.default_rng(rng)
-
-        quick_time = time.time if logging else lambda: 0
-        log = SketchAndPrecondLog()
-
-        # Sketch the data matrix
-        tic = quick_time()
-        S = self.sketch_op_gen(d, n_rows, rng)
-        A_ske = S @ A
-        log.time_sketch = quick_time() - tic
-
-        # Factor the sketch
-        tic = quick_time()
-        if delta > 0:
-            A_ske = np.vstack((A_ske, sqrt_delta * np.eye(n_cols)))
-        M, U, sigma, Vh = rpc.svd_right_precond(A_ske)
-        log.time_factor = quick_time() - tic
-
-        if self.smart_init:
-            tic = quick_time()
-            b_ske = S @ b
-            z_ske = U[:d, :].T @ b_ske
-            x_ske = M @ z_ske
-            r = b - A @ x_ske
-            if delta > 0:
-                r = np.concatenate((r, sqrt_delta * x_ske))
-            if la.norm(r, ord=2) >= la.norm(b, ord=2):
-                z_ske = None
-            log.time_presolve = quick_time() - tic
-        else:
-            z_ske = None
-        tic = quick_time()
-        res = self.iterative_solver(A, b, None, delta, tol, iter_lim, M, False, z_ske)
-        toc = quick_time()
-        log.time_iterate = toc - tic
-        x_star = res[0]
-
-        if logging:
-            ar0 = M.T @ (A.T @ b)
-            log.wrap_up(res[2], la.norm(ar0))
-            log.error_desc = self.iterative_solver.ERROR_METRIC_INFO
-
-        return x_star, log
 
 
 #TODO: write docstring
 def spo3(A, b, delta, tol, iter_lim, rng, sampling_factor=3, vec_nnz=8, mode='qr'):
     skop = sko.SkOpSJ(vec_nnz)
-    alg = SPO3(skop, sampling_factor, mode)
+    alg = SPO(skop, sampling_factor, mode)
     return alg(A, b, delta, tol, iter_lim, rng, logging=True)
 
 
-class SPO3(OverLstsqSolver):
+class SPO(OverLstsqSolver):
     """A sketch-and-precondition approach to overdetermined ordinary least
-    squares. This implementation uses QR or Cholesky to obtain the preconditioner,
-    and it uses LSQR for the iterative method.
+    squares. This implementation uses QR, Cholesky, or SVD to obtain the
+    preconditioner, and it uses LSQR for the iterative method.
 
     Before starting LSQR, we run a basic sketch-and-solve (for free, given
-    our QR decomposition of the sketched data matrix) to obtain a solution
+    our decomposition of the sketched data matrix) to obtain a solution
     x_ske. If ||A x_ske - b||_2 < ||b||_2, then we initialize LSQR at x_ske.
 
-    This implementation assumes A is full rank.
+    If A is rank-deficient, then the preconditioner must be obtained by SVD.
 
     References
     ----------
-    This implementation was inspired by Blendenpik (AMT:2010). The differences
-    relative to the official Blendenpik algorithm [AMT:2010, Algorithm 1] are
+    This implementation was inspired by Blendenpik (AMT:2010) and LSRN (MSM:2014).
+    The differences relative to [AMT:2010, Algorithm 1] are
 
         (1) We make no assumption on the distribution of the sketching matrix
             which is used to form the preconditioner. Blendenpik only used
@@ -339,13 +240,26 @@ class SPO3(OverLstsqSolver):
         (6) We let the user choose whether the upper-triangular preconditioner
             is obtained by QR or Cholesky. (They are equivalent in exact
             arithmetic but have different numerical profiles.)
+
+    The differences relative to [MSM:2014, Algorithm 1] are
+
+        (1) LSRN uses the Chebyshev semi-iterative method instead of LSQR.
+
+        (1) We make no assumption on the distribution of the sketching operator.
+            LSRN uses a Gaussian sketching operator.
+
+        (2) We provide the option of intelligently initializing the iterative
+            solver (LSQR) with the better of the two solutions given by the
+            zero vector and the result of sketch-and-solve.
     """
 
     INTERFACE_FIELDS = (
         """
-    This method can compute solutions to high accuracy. It computes the unpivoted
-    QR decomposition of a A (or Cholesky of a sketched Gram matrix), and then calls
-    a preconditioned version of LSQR.
+    This method can compute solutions to high accuracy. It computes either
+        (1) the unpivoted QR decomposition of a sketch of A,
+        (2) the Cholesky decomposition of a sketched Gram matrix, or
+        (3) the SVD of a sketch of A
+    and then calls a preconditioned version of LSQR.
         """,
         """Termination criteria used by SciPy's LSQR implementation,
         as applied to a preconditioned version of the problem.""",
@@ -382,44 +296,51 @@ class SPO3(OverLstsqSolver):
         A_ske = S @ A
         log.time_sketch = quick_time() - tic
 
-        # Factor the sketch
-        tic = quick_time()
+        # Factor the sketch. Start sketch-and-solve style presolve.
         if self.mode == 'qr':
+            tic = quick_time()
             if delta > 0:
                 A_ske = np.vstack((A_ske, sqrt_delta * np.eye(n_cols)))
             Q, R = la.qr(A_ske, overwrite_a=True, mode='economic')
+            log.time_factor = quick_time() - tic
+            tic = quick_time()
+            b_ske = S @ b
+            z_ske = Q[:d, :].T @ b_ske
+            x_ske = la.solve_triangular(R, z_ske, lower=False)
         elif self.mode == 'chol':
+            tic = quick_time()
             G = np.eye(n_cols)
             G = la.blas.dsyrk(1.0, A_ske, beta=delta, c=G, trans=1, lower=False,
                               overwrite_c=True)
             rows, cols = np.triu_indices(n_cols)
             G[cols, rows] = G[rows, cols]
             R = la.cholesky(G, overwrite_a=True, check_finite=False)
-            Q = None
+            log.time_factor = quick_time() - tic
+            tic = quick_time()
+            b_ske = S @ b
+            z_ske = la.solve_triangular(R, A_ske.T @ b_ske, lower=False, trans='T')
+            x_ske = la.solve_triangular(R, z_ske, lower=False)
         elif self.mode == 'svd':
+            tic = quick_time()
             if delta > 0:
                 A_ske = np.vstack((A_ske, sqrt_delta * np.eye(n_cols)))
             R, U, sigma, Vh = rpc.svd_right_precond(A_ske)
-        else:
-            raise ValueError()
-        log.time_factor = quick_time() - tic
-
-        # Sketch-and-solve type preprocessing
-        tic = quick_time()
-        b_ske = S @ b
-        if self.mode == 'qr':
-            z_ske = Q[:d, :].T @ b_ske
-            x_ske = la.solve_triangular(R, z_ske, lower=False)
-        elif self.mode == 'chol':
-            z_ske = la.solve_triangular(R, A_ske.T @ b_ske, lower=False, trans='T')
-            x_ske = la.solve_triangular(R, z_ske, lower=False)
-        else:  # svd
+            log.time_factor = quick_time() - tic
+            tic = quick_time()
+            b_ske = S @ b
             z_ske = U[:d, :].T @ b_ske
             x_ske = R @ z_ske
+        else:
+            raise ValueError()
+
+        # Complete sketch-and-solve style presolve
         r = A @ x_ske - b
         if delta > 0:
             r = np.concatenate((r, sqrt_delta * x_ske))
-        if np.linalg.norm(r) >= np.linalg.norm(b):
+        rel_err = la.norm(r) / la.norm(b)
+        if rel_err >= 1 or (rel_err > 1e-15 and R.shape[0] != R.shape[1]):
+            # Either the zero vector is a better solution, or we have an inconsistent
+            # rank-deficient problem (which forces us to initialize at the origin).
             z_ske = None
         log.time_presolve = quick_time() - tic
 
@@ -504,7 +425,11 @@ class SPU1(UnderLstsqSolver):
         ||y - pinv(A') c||_2.
     """
 
-    INTERFACE_FIELDS = SPO1.INTERFACE_FIELDS
+    INTERFACE_FIELDS = (
+        """
+    This method can compute solutions to high accuracy. It computes the SVD of
+    a sketch of A, and then calls a preconditioned version of LSQR.
+        """,) + SPO.INTERFACE_FIELDS[1:]
     # ^ They happen to be shared with an overdetermined solver
 
     CALL_DOC = UnderLstsqSolver.TEMPLATE_DOC_STR % INTERFACE_FIELDS

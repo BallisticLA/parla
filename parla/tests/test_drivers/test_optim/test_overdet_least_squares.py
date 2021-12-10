@@ -181,7 +181,7 @@ class AlgTestHelper:
         # This test is probably better scaled than the normal equations
         residual = self.A @ self.x_approx - self.b
         residual_proj = self.U @ (self.U.T @ residual)
-        nrm = la.norm(residual_proj, ord=2) / np.linalg.norm(residual)
+        nrm = la.norm(residual_proj, ord=2) / la.norm(residual)
         self.tester.assertLessEqual(nrm, tol)
 
     def test_objective(self, tol):
@@ -251,18 +251,19 @@ class TestOverLstsqSolver(unittest.TestCase):
         pass
 
 
-class TestSPO3(TestOverLstsqSolver):
+class TestSPO(TestOverLstsqSolver):
     """
-    Test SPO3 objects (sketch-and-precondition based on QR).
+    Test SPO objects
 
     These objects are characterized by
         (1) the method they use to generate the sketching operator,
         (2) a parameter "sampling_factor", where for an m-by-n matrix
             A, its sketching operator S is of shape (sampling_factor * n)-by-m.
+        (3) the way they factor the sketch of A.
     """
 
     def test_srct_qr(self):
-        sap = rlsq.SPO3(oblivious.SkOpTC(), sampling_factor=2)
+        sap = rlsq.SPO(oblivious.SkOpTC(), sampling_factor=2)
         ath = inconsistent_gen()
         self._test_convergence_rate(ath, sap, ridge=False)
         self._test_convergence_rate(ath, sap, ridge=True)
@@ -271,7 +272,7 @@ class TestSPO3(TestOverLstsqSolver):
         pass
 
     def test_gaussian_qr(self):
-        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=2)
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=2)
         ath = inconsistent_gen()
         self._test_convergence_rate(ath, sap, ridge=False)
         self._test_convergence_rate(ath, sap, ridge=True)
@@ -280,7 +281,7 @@ class TestSPO3(TestOverLstsqSolver):
         pass
 
     def test_sjlt_qr(self):
-        sap = rlsq.SPO3(oblivious.SkOpSJ(vec_nnz=8), sampling_factor=2)
+        sap = rlsq.SPO(oblivious.SkOpSJ(vec_nnz=8), sampling_factor=2)
         ath = inconsistent_gen()
         self._test_convergence_rate(ath, sap, ridge=False)
         self._test_convergence_rate(ath, sap, ridge=True)
@@ -290,26 +291,26 @@ class TestSPO3(TestOverLstsqSolver):
 
     def test_consistent_tall_qr(self):
         ath = consistent_tall()
-        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=1)
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=1)
         self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
 
     def test_consistent_square_qr(self):
         ath = consistent_square()
-        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=1)
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=1)
         self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
 
     def test_inconsistent_orth_qr(self):
         ath = inconsistent_orthog()
-        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=3)
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3)
         self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
 
     def test_inconsistent_gen_qr(self):
         ath = inconsistent_gen()
-        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=3)
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3)
         self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
 
     def test_srct_chol(self):
-        sap = rlsq.SPO3(oblivious.SkOpTC(), sampling_factor=2, mode='chol')
+        sap = rlsq.SPO(oblivious.SkOpTC(), sampling_factor=2, mode='chol')
         ath = inconsistent_gen()
         self._test_convergence_rate(ath, sap, ridge=False)
         self._test_convergence_rate(ath, sap, ridge=True)
@@ -318,7 +319,7 @@ class TestSPO3(TestOverLstsqSolver):
         pass
 
     def test_gaussian_chol(self):
-        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=2, mode='chol')
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=2, mode='chol')
         ath = inconsistent_gen()
         self._test_convergence_rate(ath, sap, ridge=False)
         self._test_convergence_rate(ath, sap, ridge=True)
@@ -327,7 +328,7 @@ class TestSPO3(TestOverLstsqSolver):
         pass
 
     def test_sjlt_chol(self):
-        sap = rlsq.SPO3(oblivious.SkOpSJ(vec_nnz=8), sampling_factor=2, mode='chol')
+        sap = rlsq.SPO(oblivious.SkOpSJ(vec_nnz=8), sampling_factor=2, mode='chol')
         ath = inconsistent_gen()
         self._test_convergence_rate(ath, sap, ridge=False)
         self._test_convergence_rate(ath, sap, ridge=True)
@@ -337,27 +338,27 @@ class TestSPO3(TestOverLstsqSolver):
 
     def test_consistent_tall_chol(self):
         ath = consistent_tall()
-        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=1, mode='chol')
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=1, mode='chol')
         self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
 
     def test_consistent_square_chol(self):
         ath = consistent_square()
-        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=1, mode='chol')
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=1, mode='chol')
         self.run_consistent(ath, sap, 0.0, 1, 1e-10, self.SEEDS)
         # ^ Slightly lower tolerance than consistent_tall_chol
 
     def test_inconsistent_orth_chol(self):
         ath = inconsistent_orthog()
-        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=3, mode='chol')
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3, mode='chol')
         self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
 
     def test_inconsistent_gen_chol(self):
         ath = inconsistent_gen()
-        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=3, mode='chol')
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3, mode='chol')
         self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
 
     def test_srct_svd(self):
-        sap = rlsq.SPO3(oblivious.SkOpTC(), sampling_factor=2, mode='svd')
+        sap = rlsq.SPO(oblivious.SkOpTC(), sampling_factor=2, mode='svd')
         ath = inconsistent_gen()
         self._test_convergence_rate(ath, sap, ridge=False)
         self._test_convergence_rate(ath, sap, ridge=True)
@@ -366,7 +367,7 @@ class TestSPO3(TestOverLstsqSolver):
         pass
 
     def test_gaussian_svd(self):
-        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=2, mode='svd')
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=2, mode='svd')
         ath = inconsistent_gen()
         self._test_convergence_rate(ath, sap, ridge=False)
         self._test_convergence_rate(ath, sap, ridge=True)
@@ -375,7 +376,7 @@ class TestSPO3(TestOverLstsqSolver):
         pass
 
     def test_sjlt_svd(self):
-        sap = rlsq.SPO3(oblivious.SkOpSJ(vec_nnz=8), sampling_factor=2, mode='svd')
+        sap = rlsq.SPO(oblivious.SkOpSJ(vec_nnz=8), sampling_factor=2, mode='svd')
         ath = inconsistent_gen()
         self._test_convergence_rate(ath, sap, ridge=False)
         self._test_convergence_rate(ath, sap, ridge=True)
@@ -385,113 +386,29 @@ class TestSPO3(TestOverLstsqSolver):
 
     def test_consistent_tall_svd(self):
         ath = consistent_tall()
-        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=1, mode='svd')
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=1, mode='svd')
         self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
 
     def test_consistent_square_svd(self):
         ath = consistent_square()
-        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=1, mode='svd')
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=1, mode='svd')
         self.run_consistent(ath, sap, 0.0, 1, 1e-10, self.SEEDS)
         # ^ Slightly lower tolerance than consistent_tall_chol
 
     def test_inconsistent_orth_svd(self):
         ath = inconsistent_orthog()
-        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=3, mode='svd')
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3, mode='svd')
         self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
 
     def test_inconsistent_gen_svd(self):
         ath = inconsistent_gen()
-        sap = rlsq.SPO3(oblivious.SkOpGA(), sampling_factor=3, mode='svd')
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3, mode='svd')
         self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
 
-
-class TestSPO1(TestOverLstsqSolver):
-    """
-    Test SPO1 objects (sketch-and-precondition based on SVD).
-
-    These objects are characterized by
-        (1) the method they use to generate the sketching operator,
-        (2) a parameter "sampling_factor", where for an m-by-n matrix
-            A, its sketching operator S is of shape (sampling_factor * n)-by-m.
-        (3) a parameter "smart_init", which determines whether the
-            algorithm tries to initialize its iterative solver at the 
-            result given by sketch-and-solve.
-    """
-
-    def test_srct(self):
-        sap = rlsq.SPO1(oblivious.SkOpTC(),
-                        sampling_factor=3, smart_init=True)
-        ath = inconsistent_gen()
-        self._test_convergence_rate(ath, sap, ridge=False)
-        self._test_convergence_rate(ath, sap, ridge=True)
-        ath = inconsistent_stackid()
-        self._test_convergence_rate(ath, sap, ridge=False)
-        pass
-
-    def test_gaussian_zero_init(self):
-        sap = rlsq.SPO1(oblivious.SkOpGA(),
-                        sampling_factor=3, smart_init=False)
-        ath = inconsistent_gen()
-        self._test_convergence_rate(ath, sap, ridge=False)
-        self._test_convergence_rate(ath, sap, ridge=True)
-        ath = inconsistent_stackid()
-        self._test_convergence_rate(ath, sap, ridge=False)
-
-    def test_gaussian_smart_init(self):
-        sap = rlsq.SPO1(oblivious.SkOpGA(),
-                        sampling_factor=3, smart_init=True)
-        ath = inconsistent_gen()
-        self._test_convergence_rate(ath, sap, ridge=False)
-        self._test_convergence_rate(ath, sap, ridge=True)
-        ath = inconsistent_stackid()
-        self._test_convergence_rate(ath, sap, ridge=False)
-
-    def test_sjlt(self):
-        sap = rlsq.SPO1(oblivious.SkOpSJ(vec_nnz=8),
-                        sampling_factor=3, smart_init=True)
-        ath = inconsistent_gen()
-        self._test_convergence_rate(ath, sap, ridge=False)
-        self._test_convergence_rate(ath, sap, ridge=True)
-        ath = inconsistent_stackid()
-        self._test_convergence_rate(ath, sap, ridge=False)
-
-    def test_consistent_tall(self):
-        ath = consistent_tall()
-        sap = rlsq.SPO1(oblivious.SkOpGA(), 3, smart_init=False)
-        self.run_consistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
-        sap.sampling_factor = 1
-        sap.smart_init = True
-        self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
-
-    def test_consistent_lowrank(self):
+    def test_consistent_lowrank_svd(self):
         ath = consistent_lowrank()
-        sap = rlsq.SPO1(oblivious.SkOpGA(), 3, smart_init=False)
-        self.run_consistent(ath, sap, 0.0, 100, 1e-6, self.SEEDS)
-        sap.sampling_factor = 1
-        sap.smart_init = True
-        self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
-
-    def test_consistent_square(self):
-        ath = consistent_square()
-        sap = rlsq.SPO1(oblivious.SkOpGA(), 1, smart_init=False)
-        self.run_consistent(ath, sap, 0.0, 100, 1e-6, self.SEEDS)
-        sap.sampling_factor = 1
-        sap.smart_init = True
-        self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
-
-    def test_inconsistent_orth(self):
-        ath = inconsistent_orthog()
-        sap = rlsq.SPO1(oblivious.SkOpGA(), 3, smart_init=False)
-        self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
-        sap.smart_init = True
-        self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
-
-    def test_inconsistent_gen(self):
-        ath = inconsistent_gen()
-        sap = rlsq.SPO1(oblivious.SkOpGA(), 3, smart_init=False)
-        self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
-        sap.smart_init = True
-        self.run_inconsistent(ath, sap, 1e-12, 50, 1e-6, self.SEEDS)
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3, mode='svd')
+        self.run_consistent(ath, sap, 1-12, 1, 1e-6, self.SEEDS)
 
 
 class TestSAS(unittest.TestCase):
