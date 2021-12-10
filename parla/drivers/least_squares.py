@@ -1,9 +1,6 @@
 """
 Routines for (approximately) solving strongly overdetermined or strongly
 underdetermined least squares problems.
-
-#TODO: address the fact that error metrics are reported w.r.t. an augmented
-    system that eliminates \delta.
 """
 import warnings
 import scipy.linalg as la
