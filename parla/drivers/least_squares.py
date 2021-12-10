@@ -8,7 +8,7 @@ import numpy as np
 import parla.comps.sketchers.oblivious as sko
 import parla.comps.preconditioning as rpc
 import parla.comps.determiter.saddle as dsad
-from parla.utils.timing import fast_timer
+import time
 import parla.utils.misc as misc
 from parla.comps.determiter.logging import SketchAndPrecondLog
 
@@ -165,12 +165,9 @@ class SSO1(OverLstsqSolver):
         d = dim_checks(self.sampling_factor, n_rows, n_cols)
         rng = np.random.default_rng(rng)
 
-        log = {
-            'time_sketch': -1.0,
-            'time_solve': -1.0,
-        }
+        log = {'time_sketch': -1.0, 'time_solve': -1.0}
 
-        quick_time = fast_timer(not logging)
+        quick_time = time.time if logging else lambda: 0
 
         tic = quick_time()
         S = self.sketch_op_gen(d, n_rows, rng)
@@ -255,7 +252,7 @@ class SPO1(OverLstsqSolver):
         d = dim_checks(self.sampling_factor, n_rows, n_cols)
         rng = np.random.default_rng(rng)
 
-        quick_time = fast_timer(not logging)
+        quick_time = time.time if logging else lambda: 0
         log = SketchAndPrecondLog()
 
         # Sketch the data matrix
@@ -376,7 +373,7 @@ class SPO3(OverLstsqSolver):
         d = dim_checks(self.sampling_factor, n_rows, n_cols)
         rng = np.random.default_rng(rng)
 
-        quick_time = fast_timer(not logging)
+        quick_time = time.time if logging else lambda: 0
         log = SketchAndPrecondLog()
 
         # Sketch the data matrix
@@ -511,7 +508,7 @@ class SPU1(UnderLstsqSolver):
         d = dim_checks(self.sampling_factor, n_rows, n_cols)
         rng = np.random.default_rng(rng)
 
-        quick_time = fast_timer(not logging)
+        quick_time = time.time if logging else lambda: 0
         log = SketchAndPrecondLog()
 
         # Sketch the data matrix

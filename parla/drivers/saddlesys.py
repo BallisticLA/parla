@@ -6,7 +6,7 @@ import parla.comps.preconditioning as rpc
 import parla.comps.sketchers.oblivious as sko
 from parla.drivers.least_squares import dim_checks, OverLstsqSolver
 from parla.comps.determiter.logging import SketchAndPrecondLog
-from parla.utils.timing import fast_timer
+import time
 import parla.utils.misc as misc
 
 
@@ -125,7 +125,7 @@ class SPS1(SaddleSolver):
         if b is None:
             b = np.zeros(m)
 
-        quick_time = fast_timer(not logging)
+        quick_time = time.time if logging else lambda: 0
         log = SketchAndPrecondLog()
 
         # Sketch the data matrix
@@ -217,7 +217,7 @@ class SPS2(SaddleSolver):
         if b is None:
             b = np.zeros(m)
 
-        quick_time = fast_timer(not logging)
+        quick_time = time.time if logging else lambda: 0
         log = SketchAndPrecondLog()
 
         # Sketch the data matrix

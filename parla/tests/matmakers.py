@@ -37,5 +37,5 @@ def exponent_spectrum(n_rows, n_cols, rank, rng, spectrum_param, factors=False):
 
 
 def s_shaped_spectrum(n_rows, n_cols, rank, rng, factors=False):
-    spectrum = 0.0001 + 1 / (1 + np.exp(np.arange(1, rank) - 29));
+    spectrum = 0.0001 + 1 / (1 + np.exp(np.arange(1, rank) - 29))
     return rand_low_rank(n_rows, n_cols, spectrum, rng, factors)      

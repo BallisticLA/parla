@@ -4,7 +4,7 @@ from scipy.sparse import linalg as sparla
 
 from parla.comps.determiter.lsqr import lsqr
 from parla.comps.determiter.cg import cg
-from parla.comps.preconditioning import a_times_inv_r, a_times_m
+from parla.comps.preconditioning import a_lift_precond
 
 
 def pcss1(A, b, c, delta, tol, iter_lim, R, upper_tri, z0):
@@ -153,10 +153,7 @@ class PcSS2(PrecondSaddleSolver):
         m, n = A.shape
         k = 1 if (b is None or b.ndim == 1) else b.shape[1]
 
-        if upper_tri:
-            A_pc, M_fwd, M_adj = a_times_inv_r(A, delta, R, k)
-        else:
-            A_pc, M_fwd, M_adj = a_times_m(A, delta, R, k)
+        A_pc, M_fwd, M_adj = a_lift_precond(A, delta, R, upper_tri, k)
 
         if c is None or la.norm(c) == 0:
             # Overdetermined least squares

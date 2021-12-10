@@ -12,15 +12,8 @@ def a_lift(A, scale):
         # However, it's faster than the LinearOperator approach I tried.
         return A
 
-#TODO: consolidate the r and M cases below.
-#   use a flag for upper-triangular.
 
-#TODO: rename functions here ("times" and "inv_r" and "m" is a mess).
-
-
-def a_times_inv_r(A, delta, R, k=1):
-    """Return a linear operator that represents [A; sqrt(delta)*I] @ inv(R)
-    """
+def a_lift_precond(A, delta, R, upper_tri=False, k=1):
     if k != 1:
         raise NotImplementedError()
 
@@ -28,53 +21,40 @@ def a_times_inv_r(A, delta, R, k=1):
     A_lift = a_lift(A, sqrt_delta)
     m = A.shape[0]
 
-    def forward(arg, work):
-        np.copyto(work, arg)
-        work = la.solve_triangular(R, work, lower=False, check_finite=False,
-                                   overwrite_b=True)
-        out = A_lift @ work
-        return out
+    if upper_tri:
 
-    def adjoint(arg, work):
-        np.dot(A.T, arg[:m], out=work)
-        if delta > 0:
-            work += sqrt_delta * arg[m:]
-        out = la.solve_triangular(R, work, 'T', lower=False, check_finite=False)
-        return out
+        def forward(arg, work):
+            np.copyto(work, arg)
+            work = la.solve_triangular(R, work, lower=False, check_finite=False,
+                                       overwrite_b=True)
+            out = A_lift @ work
+            return out
 
-    vec_work = np.zeros(A.shape[1])
-    mv = lambda vec: forward(vec, vec_work)
-    rmv = lambda vec: adjoint(vec, vec_work)
-    # if k != 1 then we'd need to allocate workspace differently.
-    # (And maybe use workspace differently.)
+        def adjoint(arg, work):
+            np.dot(A.T, arg[:m], out=work)
+            if delta > 0:
+                work += sqrt_delta * arg[m:]
+            out = la.solve_triangular(R, work, 'T', lower=False, check_finite=False)
+            return out
 
-    A_precond = sparla.LinearOperator(shape=A_lift.shape,
-                                      matvec=mv, rmatvec=rmv)
+        M_fwd = lambda z: la.solve_triangular(R, z, lower=False)
+        M_adj = lambda w: la.solve_triangular(R, w, 'T', lower=False)
 
-    M_fwd = lambda z: la.solve_triangular(R, z, lower=False)
-    M_adj = lambda w: la.solve_triangular(R, w, 'T', lower=False)
+    else:
 
-    return A_precond, M_fwd, M_adj
+        def forward(arg, work):
+            np.dot(R, arg, out=work)
+            out = A_lift @ work
+            return out
 
+        def adjoint(arg, work):
+            np.dot(A.T, arg[:m], out=work)
+            if delta > 0:
+                work += sqrt_delta * arg[m:]
+            return R.T @ work
 
-def a_times_m(A, delta, M, k=1):
-    if k != 1:
-        raise NotImplementedError()
-
-    sqrt_delta = np.sqrt(delta)
-    A_lift = a_lift(A, sqrt_delta)
-    m = A.shape[0]
-
-    def forward(arg, work):
-        np.dot(M, arg, out=work)
-        out = A_lift @ work
-        return out
-
-    def adjoint(arg, work):
-        np.dot(A.T, arg[:m], out=work)
-        if delta > 0:
-            work += sqrt_delta * arg[m:]
-        return M.T @ work
+        M_fwd = lambda z: R @ z
+        M_adj = lambda w: R.T @ w
 
     vec_work = np.zeros(A.shape[1])
     mv = lambda x: forward(x, vec_work)
@@ -82,12 +62,8 @@ def a_times_m(A, delta, M, k=1):
     # if k != 1 then we'd need to allocate workspace differently.
     # (And maybe use workspace differently.)
 
-    A_precond = sparla.LinearOperator(shape=(A_lift.shape[0], M.shape[1]),
+    A_precond = sparla.LinearOperator(shape=(A_lift.shape[0], R.shape[1]),
                                       matvec=mv, rmatvec=rmv)
-
-    M_fwd = lambda z: M @ z
-    M_adj = lambda w: M.T @ w
-
     return A_precond, M_fwd, M_adj
 
 
