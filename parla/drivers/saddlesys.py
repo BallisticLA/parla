@@ -97,10 +97,12 @@ class SPS1(SaddleSolver):
         "Maximum number of iterations allowed by SciPy's PCG.",
         """
     log : SketchAndPrecondLog
-        Contains runtime and error metric information (refer to
-        SketchAndPrecondLog docs for more info).
+        Contains runtime and per-iterate error metric information.
+        The error of an individual iterate (x_i, y_i) is measured as\n
+                || (A'A + delta * I) x_i - (A'b - c) ||_2.\n
+        Note that y_i does not appear in that metric!
+        Run help(log) or help(SketchAndPrecondLog) for more information.
         """
-        #TODO: be clear about the meaning of "log"
     )
 
     DOC_STR = SaddleSolver.TEMPLATE_DOC_STR % INTERFACE_FIELDS
@@ -116,7 +118,7 @@ class SPS1(SaddleSolver):
         pass
 
     @misc.set_docstring(DOC_STR)
-    def __call__(self, A, b, c, delta, tol, iter_lim, rng, logging=False):
+    def __call__(self, A, b, c, delta, tol, iter_lim, rng, logging=True):
         m, n = A.shape
         sqrt_delta = np.sqrt(delta)
         d = dim_checks(self.sampling_factor, m, n)
@@ -189,10 +191,18 @@ class SPS2(SaddleSolver):
         "Maximum number of iterations allowed by SciPy's LSQR.",
         """
     log : SketchAndPrecondLog
-        Contains runtime and error metric information (refer to
-        SketchAndPrecondLog docs for more info).
+        Contains runtime and per-iterate error metric information.
+        
+        Let M denote the preconditioner obtained by sketching.
+        The error of an individual iterate (x_i, y_i) is measured as\n
+                || (A_new M)' (A_new x_i - b_new) ||_2,\n
+        where A_new is formed by stacking A on top of an identity matrix scaled
+        by \\sqrt{delta} and b_new is chosen so that was chosen so that
+        x_opt = argmin{ ||A_new x - b_new||_2 } solves (**).
+        
+        Under typical parameter settings, the condition number of (A_new M) is <= 10.
+        Run help(log) or help(SketchAndPrecondLog) for more information.
         """
-        #TODO: be clear about the meaning of "log"
     )
 
     DOC_STR = SaddleSolver.TEMPLATE_DOC_STR % INTERFACE_FIELDS

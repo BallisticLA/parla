@@ -1,6 +1,9 @@
 """
 Routines for (approximately) solving strongly overdetermined or strongly
 underdetermined least squares problems.
+
+#TODO: address the fact that error metrics are reported w.r.t. an augmented
+    system that eliminates \delta.
 """
 import warnings
 import scipy.linalg as la
@@ -148,7 +151,7 @@ class SSO1(OverLstsqSolver):
         self.overwrite_sketch = overwrite_sketch
 
     @misc.set_docstring(CALL_DOC)
-    def __call__(self, A, b, delta, tol, iter_lim, rng, logging=False):
+    def __call__(self, A, b, delta, tol, iter_lim, rng, logging=True):
         if not np.isnan(tol):
             msg = """
             This OverLstsqSolver implementation cannot directly control
@@ -267,10 +270,14 @@ class SPO(OverLstsqSolver):
         """
     log : SketchAndPrecondLog
         Contains runtime and per-iterate error metric information.
+        
+        Let M denote the preconditioner obtained by sketching.
         The error of an individual iterate x_i is measured as\n
-                || (Ap)' (Ap) x_i - (Ap)' b ||_2,\n
-        where "Ap" is a right-preconditioned version of A. Under typical
-        parameter settings, the condition number of Ap is <= 10.
+                || (A_new M)' (A_new x_i - b_new) ||_2,\n
+        where A_new is formed by stacking A on top of an identity matrix scaled
+        by \\sqrt{delta} and b_new is formed by stacking b on top of the zero vector.
+        
+        Under typical parameter settings, the condition number of (A_new M) is <= 10.
         Run help(log) or help(SketchAndPrecondLog) for more information.
         """
     )
@@ -284,7 +291,7 @@ class SPO(OverLstsqSolver):
         self.iterative_solver = dsad.PcSS2()  # implements LSQR
 
     @misc.set_docstring(CALL_DOC)
-    def __call__(self, A, b, delta, tol, iter_lim, rng, logging=False):
+    def __call__(self, A, b, delta, tol, iter_lim, rng, logging=True):
         n_rows, n_cols = A.shape
         sqrt_delta = np.sqrt(delta)
         d = dim_checks(self.sampling_factor, n_rows, n_cols)
@@ -436,12 +443,13 @@ class SPU1(UnderLstsqSolver):
         """
     log : SketchAndPrecondLog
         Contains runtime and per-iterate error metric information.
+        
+        Let M denote the preconditioner obtained by random sketching.
         The error of an individual iterate y_i is measured as\n
-                || (Ap) (Ap)' y_i - (Ap) c ||_2,\n
-        where "Ap" is a right-preconditioned version of A. Under typical
-        parameter settings, the condition number of Ap is <= 10.
-        Run help(log) or help(SketchAndPrecondLog) for more information.
-        """,)
+                || (A M) ((A M)' y_i - M' c) ||_2.\n
+                
+        Under typical parameter settings, the condition number of A M is <= 10.
+        Run help(log) or help(SketchAndPrecondLog) for more information.""",)
 
     CALL_DOC = UnderLstsqSolver.TEMPLATE_DOC_STR % INTERFACE_FIELDS
 
@@ -451,7 +459,7 @@ class SPU1(UnderLstsqSolver):
         self.iterative_solver = dsad.PcSS2()  # implements LSQR
 
     @misc.set_docstring(CALL_DOC)
-    def __call__(self, A, c, tol, iter_lim, rng, logging=False):
+    def __call__(self, A, c, tol, iter_lim, rng, logging=True):
         n_rows, n_cols = A.shape
         d = dim_checks(self.sampling_factor, n_rows, n_cols)
         rng = np.random.default_rng(rng)
@@ -478,12 +486,12 @@ class SPU1(UnderLstsqSolver):
         y_star = res[1]
 
         if logging:
-            log.wrap_up(res[2], la.norm(A @ (M @ c)))
+            log.wrap_up(res[2], la.norm(A @ (M @ (M.T @ c))))
             log.error_desc = """
             The logs produced by this algorithm measure error as\n
-                || Ap (Ap)' y - (Ap) c ||_2,\n
-            where "Ap" is a right-preconditioned version of A. Under typical
-            parameter settings, the condition number of Ap is <= 10.
+                || (A M) (A M)' y - (A M) (M' c) ||_2,\n
+            where "M" is a right-preconditioner for A. Under typical
+            parameter settings, the condition number of A M is <= 10.
             """
 
         return y_star, log
