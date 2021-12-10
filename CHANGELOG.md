@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [0.1.4] - working version
+## Added
+ - drivers: SPO combines the functionality from SPO1 and SPO3
+## Removed
+ - drivers: SPO1 and SPO3
+
 # [0.1.3] - superceded on Dec 10, 2021
 ## Added
  - Procedural interfaces to drivers (mostly undocumented).

@@ -3,7 +3,7 @@ import parla.drivers as drivers
 import parla.utils as utils
 import parla.tests as tests
 
-__version__ = '0.1.3'
+__version__ = '0.1.4'
 
 from parla.utils.sketching import gaussian_operator, srct_operator, \
     sjlt_operator, sparse_sign_operator, orthonormal_operator, sampling_operator
