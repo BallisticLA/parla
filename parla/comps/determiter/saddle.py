@@ -186,9 +186,6 @@ class PcSS3(PrecondSaddleSolver):
 
     ERROR_METRIC_INFO = PcSS2.ERROR_METRIC_INFO
 
-    def __init__(self, smart_step_size=True):
-        self.smart_step_size = smart_step_size
-
     def __call__(self, A, b, c, delta, tol, iter_lim, R, upper_tri, z0):
 
         m, n = A.shape
