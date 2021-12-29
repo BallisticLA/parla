@@ -6,6 +6,7 @@ import parla.utils.sketching as usk
 import parla.comps.sketchers.oblivious as oblivious
 import parla.utils.stats as ustats
 import parla.tests.matmakers as matmakers
+from parla.comps.determiter.saddle import PcSS3
 
 
 def consistent_tall():
@@ -207,6 +208,8 @@ class TestOverLstsqSolver(unittest.TestCase):
 
     SEEDS = [1, 4, 15, 31, 42]
 
+    CONV_RATE = -0.3
+
     def run_inconsistent(self, ath: AlgTestHelper,
                          ols: rlsq.OverLstsqSolver,
                          alg_tol, iter_lim,
@@ -235,12 +238,13 @@ class TestOverLstsqSolver(unittest.TestCase):
         rng = np.random.default_rng(34998751340)
         delta = 0.25 if ridge else 0.0
         ath.tester = self
-        x, log = alg(ath.A, ath.b, delta, 1e-12, 100, rng, logging=True)
+        max_iter = 5 * ath.A.shape[1]
+        x, log = alg(ath.A, ath.b, delta, 1e-12, max_iter, rng, logging=True)
         fit, r2 = ustats.loglinear_fit(np.arange(log.errors.size-1),
                                        log.errors[1:])
         self.assertGreaterEqual(r2, 0.95)  # linear convergence
-        self.assertLess(fit[1], -0.3)  # decay faster than \exp(-0.3 t)
-        self.assertLessEqual(log.errors[-1], 1e-6)
+        self.assertLess(fit[1], self.CONV_RATE)  # decay faster than \exp(-0.3 t)
+        self.assertLessEqual(log.errors[-1], log.errors[0]*1e-10)
         if ridge:
             m, n = ath.A.shape
             scaled_I = delta**0.5 * np.eye(n)
@@ -409,6 +413,51 @@ class TestSPO(TestOverLstsqSolver):
         ath = consistent_lowrank()
         sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3, mode='svd')
         self.run_consistent(ath, sap, 1-12, 1, 1e-6, self.SEEDS)
+
+
+class TestSPO_NS(TestOverLstsqSolver):
+    # Sketch-and-precondition, using no-refresh Newton sketch for iterative method
+
+    def test_gaussian_svd(self):
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3, mode='svd')
+        sap.iterative_solver = PcSS3()
+        ath = inconsistent_gen()
+        self.CONV_RATE = -0.1
+        self._test_convergence_rate(ath, sap, ridge=False)
+        ath = inconsistent_stackid()
+        self._test_convergence_rate(ath, sap, ridge=False)
+        pass
+
+    def test_consistent_tall_svd(self):
+        ath = consistent_tall()
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=1, mode='svd')
+        sap.iterative_solver = PcSS3()
+        self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
+
+    def test_consistent_square_svd(self):
+        ath = consistent_square()
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=1, mode='svd')
+        sap.iterative_solver = PcSS3()
+        self.run_consistent(ath, sap, 0.0, 1, 1e-10, self.SEEDS)
+
+    def test_inconsistent_orth_svd(self):
+        ath = inconsistent_orthog()
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3, mode='svd')
+        sap.iterative_solver = PcSS3()
+        self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
+
+    def test_inconsistent_gen_svd(self):
+        ath = inconsistent_gen()
+        self.CONV_RATE = -0.1
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3, mode='svd')
+        sap.iterative_solver = PcSS3()
+        self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
+
+    def test_consistent_lowrank_svd(self):
+        ath = consistent_lowrank()
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3, mode='svd')
+        sap.iterative_solver = PcSS3()
+        self.run_consistent(ath, sap, 1e-12, 1, 1e-6, self.SEEDS)
 
 
 class TestSAS(unittest.TestCase):

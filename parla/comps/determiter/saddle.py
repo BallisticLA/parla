@@ -104,7 +104,6 @@ class PcSS1(PrecondSaddleSolver):
         if upper_tri:
             raise NotImplementedError()
 
-        # Note to Riley: refer to page 28 of your notebook
         work1 = np.zeros(n)
         work2 = np.zeros(A.shape[0])
 
@@ -180,3 +179,119 @@ class PcSS2(PrecondSaddleSolver):
 
         else:
             raise ValueError('One of "b" or "c" must be zero.')
+
+
+class PcSS3(PrecondSaddleSolver):
+    """Use a no-refresh Newton-sketch style iterative refinement scheme."""
+
+    ERROR_METRIC_INFO = PcSS2.ERROR_METRIC_INFO
+
+    def __init__(self, smart_step_size=True):
+        self.smart_step_size = smart_step_size
+
+    def __call__(self, A, b, c, delta, tol, iter_lim, R, upper_tri, z0):
+
+        m, n = A.shape
+        assert m == b.shape[0]
+        assert b.ndim == 1
+        if c is not None:
+            raise NotImplementedError()
+        if delta > 0:
+            raise NotImplementedError()
+        if upper_tri:
+            raise NotImplementedError()
+        else:
+            M = R
+
+        # (A'A + \delta I) x = A'b - c
+        #  A_pc = [A; \sqrt{\delta}] M,
+        #       where the columns of (S A M) form an orthonormal
+        #       basis for the range of (S A), and where S was some
+        #       sketching operator.
+        # Algebra shows that ...
+        #
+        #   (A_pc' A_pc)^{-1} = M M'.
+        #
+        # Initialization:
+        #       (0a) x = M z0.
+        #       (0b) r = A'b - c - A'A x - \delta x
+        #
+        # Iterate by computing
+        #       (2) dx = M M' r
+        #       (3) x += dx
+        #       (1) r = A'b - c - A'A x - \delta x
+        #               Equivalently,  r -= (A'A dx - delta * dx)
+        #
+        # Termination criteria. We mimick SciPy LSQR w/ preconditioned A.
+        #     metric1 = ||M'A' r|| / (scale * ||r||)
+        #     metric2 = ||r|| / (||b|| + scale)
+        # where scale = ||A M||_{F}. This is equivalent to how we call LSQR,
+        # except that LSQR maintains a sequence of non-decreasing values for
+        # "scale" that converge to ||A M||_F. We terminate once min(metric1,
+        # metric2) falls below "tol".
+
+        # errors = absolute preconditioned normal equation error.
+
+        # workspace and error with x=0
+        iter_lim = min(iter_lim, 5*n)
+        errors = -np.ones(iter_lim + 2)
+        work_gram = np.zeros(m)
+        rank = M.shape[1]
+        work_rhs1 = np.zeros(rank)
+        work_rhs2 = np.zeros(n)
+        x = np.zeros(n)
+        dx = np.zeros(n)
+        rhs = A.T @ b
+        np.dot(M.T, rhs, out=work_rhs1)
+        err = la.norm(work_rhs1)
+        rel_tol = err * tol
+
+        def step_size(dx_):
+            Adx = A @ dx_
+            num = Adx @ (b - A @ x)
+            den = Adx @ Adx
+            if den > 0:
+                return num / den
+            nrm_dx = la.norm(dx_)
+            if nrm_dx > 0:
+                alpha = x @ dx_ / (nrm_dx ** 2)
+                return alpha
+            return np.NaN
+
+        # First step: start by computing dx, end by computing error
+        if z0 is not None and la.norm(z0) > 0:
+            np.dot(M, z0, out=dx)
+            alpha = step_size(dx)
+            x += alpha * dx
+            np.dot(A, dx, out=work_gram)
+            np.dot(A.T, work_gram, out=work_rhs2)
+            rhs -= alpha*work_rhs2
+            np.dot(M.T, rhs, out=work_rhs1)
+            err = la.norm(work_rhs1)
+
+        # main loop; start by computing dx, end by computing error
+        it = 1
+        iter_lim += 1
+        while it < iter_lim and err > rel_tol:
+            np.dot(M, work_rhs2, out=dx)  # dx = M M' rhs
+            alpha = step_size(dx)
+            if np.isnan(alpha) or alpha == 0:
+                errors[it] = err
+                break
+            dx *= alpha
+            x += dx
+            np.dot(A, dx, out=work_gram)
+            np.dot(A.T, work_gram, out=work_rhs1)
+            if it % 50 == 0:
+                rhs = A.T @ (b - A @ x)
+            else:
+                rhs -= work_rhs1   # rhs -= alpha * (A'A dx + \delta dx)
+            np.dot(M.T, rhs, out=work_rhs2)
+            err = la.norm(work_rhs2)
+            errors[it] = err
+            it += 1
+
+        errors = errors[errors > -1]
+
+        y = b - A @ x
+        return x, y, errors
