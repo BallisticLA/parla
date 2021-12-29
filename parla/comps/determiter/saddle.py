@@ -262,10 +262,11 @@ class PcSS3(PrecondSaddleSolver):
         if z0 is not None and la.norm(z0) > 0:
             np.dot(M, z0, out=dx)
             alpha = step_size(dx)
-            x += alpha * dx
+            dx *= alpha
+            x += dx
             np.dot(A, dx, out=work_gram)
             np.dot(A.T, work_gram, out=work_rhs2)
-            rhs -= alpha*work_rhs2
+            rhs -= work_rhs2
             np.dot(M.T, rhs, out=work_rhs1)
             err = la.norm(work_rhs1)
 
@@ -273,7 +274,7 @@ class PcSS3(PrecondSaddleSolver):
         it = 1
         iter_lim += 1
         while it < iter_lim and err > rel_tol:
-            np.dot(M, work_rhs2, out=dx)  # dx = M M' rhs
+            np.dot(M, work_rhs1, out=dx)  # dx = M M' rhs
             alpha = step_size(dx)
             if np.isnan(alpha) or alpha == 0:
                 errors[it] = err
@@ -281,13 +282,13 @@ class PcSS3(PrecondSaddleSolver):
             dx *= alpha
             x += dx
             np.dot(A, dx, out=work_gram)
-            np.dot(A.T, work_gram, out=work_rhs1)
+            np.dot(A.T, work_gram, out=work_rhs2)
             if it % 50 == 0:
                 rhs = A.T @ (b - A @ x)
             else:
-                rhs -= work_rhs1   # rhs -= alpha * (A'A dx + \delta dx)
-            np.dot(M.T, rhs, out=work_rhs2)
-            err = la.norm(work_rhs2)
+                rhs -= work_rhs2  # rhs -= alpha * (A'A dx + \delta dx)
+            np.dot(M.T, rhs, out=work_rhs1)
+            err = la.norm(work_rhs1)
             errors[it] = err
             it += 1
 
