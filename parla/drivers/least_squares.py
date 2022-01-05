@@ -10,6 +10,7 @@ import parla.comps.preconditioning as rpc
 import parla.comps.determiter.saddle as dsad
 import time
 import parla.utils.misc as misc
+import parla.utils.sketching as usk
 from parla.comps.determiter.logging import SketchAndPrecondLog
 
 

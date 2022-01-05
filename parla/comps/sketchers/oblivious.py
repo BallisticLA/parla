@@ -55,6 +55,17 @@ class SkOpSJ(SketchOpGen):
         return usk.sjlt_operator(n_rows, n_cols, rng, self.vec_nnz)
 
 
+class SkOpNL(SketchOpGen):
+    """Generate a sparse sketching operator, based on Newton LESS."""
+
+    def __init__(self, vec_nnz=8, lev_scores=False):
+        self.vec_nnz = vec_nnz
+        self.lev_scores = lev_scores
+
+    def __call__(self, n_rows, n_cols, rng):
+        return usk.less_operator(n_rows, n_cols, rng, vec_nnz=self.vec_nnz, lev_scores=self.lev_scores)
+
+
 class SkOpSS(SketchOpGen):
     """Generate a sparse-sign sketching operator."""
 

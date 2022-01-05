@@ -212,3 +212,48 @@ def sampling_operator(n_rows, n_cols, rng, indices=None):
         S = sampling_operator(n_cols, n_rows, indices)
         S = S.T
     return S
+
+def less_operator(n_rows, n_cols, rng, vec_nnz=8, lev_scores=False):
+    """
+
+    Parameters
+    ----------
+    rng
+    n_rows : int
+        number of rows of embedding operator
+    n_cols : int
+        number of columns of embedding operator
+    vec_nnz : int
+        number of nonzeros in each row
+
+    Returns
+    -------
+    S : SciPy sparse matrix
+    """
+
+    rng = np.random.default_rng(rng)
+
+    sketch_size = n_rows
+    n = n_cols
+    d_tilde = vec_nnz
+
+    if not lev_scores:
+        indices = np.vstack([np.repeat(np.arange(sketch_size), d_tilde).reshape((1,-1)),
+                             rng.choice(n,size=sketch_size*d_tilde).reshape((1,-1))])
+        values = rng.choice(np.array([-1,1], dtype=np.float64), size=sketch_size*d_tilde)
+        values *= np.sqrt(n/(sketch_size*d_tilde))
+        rows = np.repeat(np.arange(sketch_size), d_tilde)
+        cols = rng.choice(n,size=sketch_size*d_tilde)
+        S = spar.coo_matrix((values, (rows, cols)), shape=(n_rows, n_cols))
+        S = S.tocsr()
+        return S
+
+    else:
+        # [TODO: add LESS with leverage score]
+
+        msg = f"""
+        [TODO: add LESS with leverage score]
+        """
+        warnings.warn(msg)
+
+        return gaussian_operator(n_rows, n_cols, rng)
