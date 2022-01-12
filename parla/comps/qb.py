@@ -229,7 +229,7 @@ def qb_b_pe(num_passes, blk, A, k, tol, rng):
     passes over A.
     """
     rng = np.random.default_rng(rng)
-    sk_op = RS1(oblivious.SkOpGA(), num_passes, ulaw.orth, 1)
+    sk_op = RS1(oblivious.SkOpGA(), num_passes - 1, ulaw.orth, 1)
     Q, B = QB3(sk_op, blk)(A, k, tol, rng)
     return Q, B
 

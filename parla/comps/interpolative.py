@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.linalg as la
 from scipy import linalg as la
-from parla import RowSketcher
+from parla.comps.sketchers.aware import RowSketcher
 import parla.comps.sketchers.oblivious as osk
 import parla.comps.sketchers.aware as ask
 import parla.utils.linalg_wrappers as ulaw

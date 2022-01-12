@@ -86,6 +86,7 @@ def evd1(A, k, tol, over, inner_num_pass, block_size, rng):
         SIAM review 53.2 (2011): 217-288.
         (available at `arXiv <http://arxiv.org/abs/0909.4061>`_).
     """
+    assert inner_num_pass >= 2
     rng = np.random.default_rng(rng)
     rso_ = RS1(oblivious.SkOpGA(), inner_num_pass - 2, ulaw.orth, 1)
     rf_ = RF1(rso_)
@@ -125,7 +126,7 @@ def evd2(A, k, over, num_passes, rng):
 
     num_passes : int
         Total number of passes the algorithm is allowed over A.
-        We require num_passes >= 2, and usually we have num_passes <= 10.
+        We require num_passes >= 1, and usually we have num_passes <= 10.
         Increasing this parameter is one way to obtain better
         approximations, especially at lower ranks.
 
@@ -155,8 +156,9 @@ def evd2(A, k, over, num_passes, rng):
         Advances in neural information processing systems, 2017.
         (available at `arXiv <https://arxiv.org/abs/1706.05736>`_).
     """
+    assert num_passes >= 1
     rng = np.random.default_rng(rng)
-    rso_ = RS1(oblivious.SkOpGA(), num_passes - 2, ulaw.orth, 1)
+    rso_ = RS1(oblivious.SkOpGA(), num_passes - 1, ulaw.orth, 1)
     evd_ = EVD2(rso_)
     V, lamb = evd_(A, k, np.NaN, over, rng)
     return V, lamb

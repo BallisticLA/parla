@@ -157,6 +157,7 @@ class RS1(RowSketcher):
 
         if self.num_pass is odd.
         """
+        assert self.num_pass >= 0
         rng = np.random.default_rng(rng)
         passes_done = 0
         if self.num_pass % 2 == 0:
