@@ -144,7 +144,7 @@ def evd2(A, k, over, num_passes, rng):
 
     Notes
     -----
-    We perform (num_passes - 2) steps of subspace iteration, and
+    We perform (num_passes - 1) steps of subspace iteration, and
     stabilize subspace iteration by a QR factorization at every step.
 
     References
