@@ -34,17 +34,55 @@
 
 """Iterative methods for solving linear systems"""
 
-# __all__ = ['bicg','bicgstab','cg','cgs','gmres','qmr']
-
 import warnings
 import numpy as np
 from scipy.sparse.linalg.isolve import _iterative
 from scipy.sparse.linalg.isolve.utils import make_system
 from scipy._lib._util import _aligned_zeros
 from scipy._lib._threadsafety import non_reentrant
-from scipy.sparse.linalg.isolve.iterative import _stoptest, _get_atol, set_docstring
+from scipy.sparse.linalg.isolve.iterative import _stoptest, set_docstring
 
 _type_conv = {'f':'s', 'd':'d', 'F':'c', 'D':'z'}
+
+def _get_atol(tol, atol, bnrm2, get_residual, routine_name):
+    """
+    Parse arguments for absolute tolerance in termination condition.
+
+    Parameters
+    ----------
+    tol, atol : object
+        The arguments passed into the solver routine by user.
+    bnrm2 : float
+        2-norm of the rhs vector.
+    get_residual : callable
+        Callable ``get_residual()`` that returns the initial value of
+        the residual.
+    routine_name : str
+        Name of the routine.
+    """
+
+    if atol is None:
+        warnings.warn("scipy.sparse.linalg.{name} called without specifying `atol`. "
+                      "The default value will be changed in a future release. "
+                      "For compatibility, specify a value for `atol` explicitly, e.g., "
+                      "``{name}(..., atol=0)``, or to retain the old behavior "
+                      "``{name}(..., atol='legacy')``".format(name=routine_name),
+                      category=DeprecationWarning, stacklevel=4)
+        atol = 'legacy'
+
+    tol = float(tol)
+
+    if atol == 'legacy':
+        # emulate old legacy behavior
+        resid = get_residual()
+        if resid <= tol:
+            return tol  # Riley changed this! It was "return 'exit'".
+        if bnrm2 == 0:
+            return tol
+        else:
+            return tol * float(bnrm2)
+    else:
+        return max(float(atol), tol * float(bnrm2))
 
 # Part of the docstring common to all iterative solvers
 common_doc1 = \
@@ -117,6 +155,8 @@ def cg(A, b, x0=None, tol=1e-5, maxiter=None, M=None, callback=None, atol=None):
     get_residual = lambda: np.linalg.norm(matvec(x) - b)
     atol = _get_atol(tol, atol, np.linalg.norm(b), get_residual, 'cg')
     if atol == 'exit':
+        #NOTE: We never hit this part of the code, given the change
+        #   Riley made in the _get_atol function.
         return postprocess(x), 0
 
     resid = atol
@@ -168,6 +208,8 @@ def cg(A, b, x0=None, tol=1e-5, maxiter=None, M=None, callback=None, atol=None):
         info = iter_
 
     residuals = residuals[residuals > -1]
+    if residuals.size == 0: # This happens when we never hit line 190
+        residuals = np.zeros(1)
     if x0 is None:
         residuals[0] = np.linalg.norm(b)
     else:

@@ -391,7 +391,7 @@ def lsqr(A, b, damp=0.0, atol=1e-8, btol=1e-8, conlim=1e8,
     # there was an error on return when arnorm==0
     arnorm = alfa * beta
     if arnorm == 0:
-        print(msg[0])
+        print(msg[0])  #TODO: Riley account for this
         return x, istop, itn, r1norm, r2norm, anorm, acond, arnorm, xnorm, var
 
     head1 = '   Itn      x[0]       r1norm     r2norm '

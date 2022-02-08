@@ -8,7 +8,7 @@ import parla.utils.stats as ustats
 import parla.comps.sketchers.oblivious as oblivious
 
 
-def make_simple_prob(m, n, spectrum, delta, rng):
+def make_simple_prob(m, n, spectrum, delta, rng, rhs_scale=1.0):
     rng = np.random.default_rng(rng)
 
     # Construct the data matrix
@@ -32,6 +32,11 @@ def make_simple_prob(m, n, spectrum, delta, rng):
     # solve for x_opt, y_opt
     gram = A.T @ A + delta * np.eye(n)
     rhs = A.T @ b - c
+    if rhs_scale != 1.0:
+        scale = rhs_scale / la.norm(rhs)
+        rhs *= scale
+        b *= scale
+        c *= scale
     try:
         x_opt = la.solve(gram, rhs, sym_pos=True)
     except la.LinAlgError:
@@ -123,7 +128,7 @@ class AlgTestHelper:
         block2 = self.A.T @ self.y_approx - self.delta * self.x_approx - self.c
         gap = np.concatenate([block1, block2])
         rel = la.norm(np.hstack((self.b, self.c)))
-        nrm = la.norm(gap, ord=2) / rel
+        nrm = la.norm(gap, ord=2) / (1 + rel)
         self.tester.assertLessEqual(nrm, tol)
 
 
@@ -187,6 +192,16 @@ class TestSaddleSolver(unittest.TestCase):
         ath = make_simple_prob(m, n, spectrum, 1.0, rng)
         self.run_ath(ath, alg, 0.0, n, 1e-10, self.SEEDS)
 
+    def _test_tiny_scale(self, alg, outer_seed=0):
+        rng = np.random.default_rng(outer_seed)
+
+        m, n, cond_num = 500, 50, 1e8
+        spectrum = np.linspace(cond_num ** 0.5, cond_num ** -0.5, num=n)
+
+        rhs_scale = 1e-9
+        ath = make_simple_prob(m, n, spectrum, 0.0, rng, rhs_scale=rhs_scale)
+        self.run_ath(ath, alg, 1e-8, n, 1e-7, self.SEEDS, rates=False)
+
 
 class TestSPS1(TestSaddleSolver):
 
@@ -210,6 +225,10 @@ class TestSPS1(TestSaddleSolver):
     def test_higher_accuracy(self):
         alg = TestSPS1.default_config()
         self._test_higher_accuracy(alg)
+
+    def test_tiny_scale(self):
+        alg = TestSPS1.default_config()
+        self._test_tiny_scale(alg)
 
 
 class TestSPS2(TestSaddleSolver):
