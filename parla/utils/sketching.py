@@ -2,7 +2,7 @@ import warnings
 import numpy as np
 import scipy.linalg as la
 import scipy.sparse as spar
-from scipy.fft import dct
+from scipy.fft import dct, idct
 import scipy.sparse.linalg as sparla
 
 
@@ -115,10 +115,11 @@ def generate_srct(n_rows, n_cols, rng):
     return r, e, perm
 
 
-def apply_srct(r, e, mat, perm=None):
+def apply_srct(r, e, mat, perm=None, forward=True):
     """
-    Apply a subsampled randomized cosine transform (SRCT) to the columns
-    of the ndarray mat. The transform is defined by data (r, e).
+    Apply a subsampled randomized cosine transform (SRCT) or its adjoint
+    to the columns of the ndarray mat. The transform is defined by data (r, e)
+    and optionally "perm".
 
     Parameters
     ----------
@@ -132,6 +133,9 @@ def apply_srct(r, e, mat, perm=None):
         the SRCT to mat as a vector.
     perm : ndarray
         permutation of range(mat.shape[0]).
+    forward: bool
+        if True, then apply the forward sketching operator. If False,
+        then apply its adjoint.
 
     Returns
     -------
@@ -142,19 +146,34 @@ def apply_srct(r, e, mat, perm=None):
     #
     #TODO: consider using SRCT in scipy.linalg._interpolative_backend -- that takes
     #   advantage of efficiency gain by subsampling.
-    if mat.ndim > 1:
-        if perm is not None:
-            mat = mat[perm, :]
-        mat = mat * e[:, None]
-        mat = dct(mat, axis=0, norm='ortho')
-        mat = mat[r, :]
+    if forward:
+        if mat.ndim > 1:
+            if perm is not None:
+                mat = mat[perm, :]
+            mat = mat * e[:, None]
+            mat = dct(mat, axis=0, norm='ortho')
+            out_mat = mat[r, :]
+        else:
+            if perm is not None:
+                mat = mat[perm]
+            mat = mat * e
+            mat = dct(mat, norm='ortho')
+            out_mat = mat[r]
     else:
+        # Adjoint
+        shape = (e.size,) if mat.ndim == 1 else (e.size, mat.shape[1])
+        out_mat = np.zeros(shape)
+        out_mat[r] = mat
+        if mat.ndim > 1:
+            out_mat = idct(out_mat, axis=0, norm='ortho', overwrite_x=True)
+            out_mat *= e[:, None]
+        else:
+            out_mat = idct(out_mat, norm='ortho', overwrite_x=True)
+            out_mat *= e
         if perm is not None:
-            mat = mat[perm]
-        mat = mat * e
-        mat = dct(mat, norm='ortho')
-        mat = mat[r]
-    return mat
+            inv_perm = np.argsort(perm)
+            out_mat = out_mat[inv_perm]
+    return out_mat
 
 
 def srct_operator(n_rows, n_cols, rng):
@@ -170,16 +189,15 @@ def srct_operator(n_rows, n_cols, rng):
         def srct(mat):
             return apply_srct(r, e, mat, perm)
 
-        S = sparla.LinearOperator(shape=(n_rows, n_cols),
-                                  matvec=srct, matmat=srct)
-        S.__dict__['sketch_data'] = (r, e, perm)
-    else:
-        def srct(mat):
-            return apply_srct(r, e, mat.T, perm).T
+        def adj_srct(mat):
+            return apply_srct(r, e, mat, perm, forward=False)
 
         S = sparla.LinearOperator(shape=(n_rows, n_cols),
-                                  rmatvec=srct, rmatmat=srct)
+                                  matvec=srct, matmat=srct,
+                                  rmatvec=adj_srct, rmatmat=adj_srct)
         S.__dict__['sketch_data'] = (r, e, perm)
+    else:
+        S = srct_operator(n_cols, n_rows, rng).T
     return S
 
 

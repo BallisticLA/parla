@@ -16,7 +16,7 @@ def make_simple_prob(m, n, spectrum, rng):
 
     y0 = rng.standard_normal(m)
     c = A.T @ y0
-    y_opt = la.lstsq(A.T, c, check_finite=False)[0]
+    y_opt = U @ ((1/spectrum) * (Vt @ c))
     ath = AlgTestHelper(A, spectrum, c, y_opt)
     return ath
 
