@@ -7,8 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 # [0.1.4] - working version
 ## Added
  - drivers: SPO combines the functionality from SPO1 and SPO3
+ - drivers: SPS1 can support Nystrom-like preconditioning.
+## Changed
+ - comps: SPS1 now contains its own implementation of PCG (no longer relies on SciPy's cg).
 ## Removed
  - drivers: SPO1 and SPO3
+ - comps: determiter/cg.py
  
 # [0.1.3] - superseded on Dec 10, 2021
 ## Added

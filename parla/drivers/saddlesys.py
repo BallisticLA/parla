@@ -121,7 +121,8 @@ class SPS1(SaddleSolver):
     def __call__(self, A, b, c, delta, tol, iter_lim, rng, logging=True):
         m, n = A.shape
         sqrt_delta = np.sqrt(delta)
-        d = dim_checks(self.sampling_factor, m, n)
+        # d = dim_checks(self.sampling_factor, m, n)
+        d = int(self.sampling_factor * n)
         rng = np.random.default_rng(rng)
 
         if b is None:
@@ -152,11 +153,15 @@ class SPS1(SaddleSolver):
         rhs = A.T @ b
         if c is not None:
             rhs -= c
-        z_ske = (Vh @ rhs) / sigma
-        x_ske = M @ z_ske
-        rhs_pc = M.T @ rhs
-        lhs_ske_pc = M.T @ (A.T @ (A @ x_ske) + delta*x_ske)
-        if la.norm(lhs_ske_pc - rhs_pc, ord=2) >= la.norm(rhs_pc, ord=2):
+        if M.shape[1] == n:
+            z_ske = (Vh @ rhs) / sigma
+            x_ske = M @ z_ske
+            rhs_pc = M.T @ rhs
+            lhs_ske_pc = M.T @ (A.T @ (A @ x_ske) + delta*x_ske)
+            if la.norm(lhs_ske_pc - rhs_pc, ord=2) >= la.norm(rhs_pc, ord=2):
+                z_ske = None
+        else:
+            #TODO: properly initialize when using a low-rank sketch
             z_ske = None
         log.time_presolve = quick_time() - tic
 
