@@ -1,13 +1,17 @@
 import scipy.linalg as la
+from scipy.sparse.linalg import LinearOperator
 import numpy as np
 from typing import Union
 import parla.comps.determiter.saddle as dsad
 import parla.comps.preconditioning as rpc
 import parla.comps.sketchers.oblivious as sko
+from parla.comps.sketchers.aware import RS1
 from parla.drivers.least_squares import dim_checks, OverLstsqSolver
+from parla.drivers.evd import EVD2
 from parla.comps.determiter.logging import SketchAndPrecondLog
 import time
 import parla.utils.misc as misc
+import parla.utils.linalg_wrappers as ulaw
 
 
 NoneType = type(None)
@@ -107,6 +111,8 @@ class SPS1(SaddleSolver):
 
     DOC_STR = SaddleSolver.TEMPLATE_DOC_STR % INTERFACE_FIELDS
 
+    NYSTROM_STATEGIES = {'one-pass', 'left-first', 'right-first'}
+
     def __init__(self, sketch_op_gen,
                  sampling_factor: int,
                  iterative_solver: Union[NoneType, dsad.PrecondSaddleSolver]):
@@ -115,6 +121,7 @@ class SPS1(SaddleSolver):
         if iterative_solver is None:
             iterative_solver = dsad.PcSS1()
         self.iterative_solver = iterative_solver
+        self.nystrom_strategy = 'one-pass'
         pass
 
     @misc.set_docstring(DOC_STR)
@@ -124,6 +131,7 @@ class SPS1(SaddleSolver):
         # d = dim_checks(self.sampling_factor, m, n)
         d = int(self.sampling_factor * n)
         rng = np.random.default_rng(rng)
+        assert self.nystrom_strategy in self.NYSTROM_STATEGIES
 
         if b is None:
             b = np.zeros(m)
@@ -131,18 +139,60 @@ class SPS1(SaddleSolver):
         quick_time = time.time if logging else lambda: 0
         log = SketchAndPrecondLog()
 
-        # Sketch the data matrix
-        tic = quick_time()
-        S = self.sketch_op_gen(d, m, rng)
-        A_ske = S @ A
-        A_ske = rpc.a_lift(A_ske, sqrt_delta)  # returns A_ske when delta=0.
-        log.time_sketch = quick_time() - tic
+        nystrom_like = d < n and delta == 0.0
 
-        # Factor the sketch
-        tic = quick_time()
-        M, U, sigma, Vh = rpc.svd_right_precond(A_ske)
-        log.time_factor = quick_time() - tic
+        if not nystrom_like:
+            # Sketch the data matrix
+            tic = quick_time()
+            S = self.sketch_op_gen(d, m, rng)
+            A_ske = S @ A
+            A_ske = rpc.a_lift(A_ske, sqrt_delta)  # returns A_ske when delta=0.
+            log.time_sketch = quick_time() - tic
 
+            # Factor the sketch
+            tic = quick_time()
+            M, U, sigma, Vh = rpc.svd_right_precond(A_ske)
+            log.time_factor = quick_time() - tic
+        else:  # delta == 0
+            if self.nystrom_strategy == 'one-pass':
+                # This is only loosely "Nystrom-like".
+                S = self.sketch_op_gen(d, m, rng)
+                A_ske = S @ A
+                tic = quick_time()
+                M, U, sigma, Vh = rpc.svd_right_precond(A_ske)
+                log.time_factor = quick_time() - tic
+            elif self.nystrom_strategy == 'right_first':
+                # Computes a Nystrom approximation of A'A.
+                # This squares the condition num. of the preconditioner gen problem
+                tic = quick_time()
+                gram = lambda arg: A.T @ (A @ arg)
+                gram_lo = LinearOperator(shape=(n, n), matvec=gram, matmat=gram)
+                rso_ = RS1(self.sketch_op_gen, 0, ulaw.orth, 1)
+                evd_ = EVD2(rso_)
+                V, lamb = evd_(gram_lo, k=d, tol=np.NaN, over=0, rng=rng)
+                M = V / lamb
+                log.time_factor = quick_time() - tic
+                log.time_sketch = 0.0  # attribute everything (incorrectly) to factoring
+            else:
+                # This computes P that solves min||P - A'A|| s.t. ker(P) = ker(A_ske),
+                # where A_ske = S @ A.
+                tic = quick_time()
+                S = self.sketch_op_gen(d, m, rng)
+                A_ske = S @ A
+                log.time_sketch = quick_time() - tic
+                # Process the sketch
+                tic = quick_time()
+                V = ulaw.orth(A_ske.T)  # A_ske.T is just a sample from the range of A'A.
+                A_sample = A @ V
+                U, sigma, Wt = la.svd(A_sample)
+                M = V @ (Wt.T / sigma)
+                log.time_factor = quick_time() - tic
+            # end if: preconditioner generation via Nystrom
+        # end if: preconditioner generation
+
+        rhs = A.T @ b
+        if c is not None:
+            rhs -= c
         # Presolve ...
         #   (A_ske' A_ske ) x_ske = (A'b - c)                         (1, define)
         #   (V \Sigma^2 V') x_ske = (A'b - c)                         (2)
@@ -150,10 +200,7 @@ class SPS1(SaddleSolver):
         #   x_ske = V \Sigma^{\dagger} z_ske = M z_ske                (4, define)
         #   z_ske = \Sigma^{\dagger} V'(A'b - c)                      (5)
         tic = quick_time()
-        rhs = A.T @ b
-        if c is not None:
-            rhs -= c
-        if M.shape[1] == n:
+        if not nystrom_like:
             z_ske = (Vh @ rhs) / sigma
             x_ske = M @ z_ske
             rhs_pc = M.T @ rhs

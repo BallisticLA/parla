@@ -230,6 +230,9 @@ class TestSPS1(TestSaddleSolver):
         alg = TestSPS1.default_config()
         self._test_tiny_scale(alg)
 
+
+class TestSPS1_Nystrom(TestSaddleSolver):
+
     # TODO: residuals in the low-rank tests aren't monotonic. I rememeber
     #   this is a thing that can happen with PCG, but it should only be possible
     #   when even the preconditioned system is badly conditioned.
@@ -237,32 +240,53 @@ class TestSPS1(TestSaddleSolver):
     #   in the best possible way (specifically, if the scaling of the
     #   preconditioner's identity component is good).
 
-    def test_lowrank_precond_linspace(self):
-        m, n, cond_num = 1000, 100, 1e5
+    @staticmethod
+    def default_config():
         alg = SPS1(
             sketch_op_gen=oblivious.SkOpGA(),
             sampling_factor=0.85,
             iterative_solver=dsad.PcSS1()
         )
+        return alg
+
+    def _test_nystrom_linspace(self, nystrom_strat):
+        m, n, cond_num = 1000, 100, 1e5
+        alg = self.default_config()
+        alg.nystrom_strategy = nystrom_strat
         spectrum = np.linspace(cond_num ** 0.5, cond_num ** -0.5, num=n)
         rng = np.random.default_rng(0)
         ath = make_simple_prob(m, n, spectrum, 0.0, rng)
-        self.run_ath(ath, alg, 1e-12, 5*n, 1e-6, self.SEEDS, rates=False)
+        self.run_ath(ath, alg, 1e-12, 5*n, 1e-7, self.SEEDS, rates=False)
         pass
 
-    def test_lowrank_precond_logspace(self):
+    def _test_nystrom_logspace(self, nystrom_strat):
         m, n, cond_num = 1000, 100, 1e5
-        alg = SPS1(
-            sketch_op_gen=oblivious.SkOpGA(),
-            sampling_factor=0.85,
-            iterative_solver=dsad.PcSS1()
-        )
+        alg = self.default_config()
+        alg.nystrom_strategy = nystrom_strat
         spectrum = np.logspace(np.log10(cond_num)/2, -np.log10(cond_num)/2, num=n)
         rng = np.random.default_rng(0)
         ath = make_simple_prob(m, n, spectrum, 0.0, rng)
-        self.run_ath(ath, alg, 1e-12, 5*n, 1e-5, self.SEEDS, rates=False)
+        self.run_ath(ath, alg, 1e-12, 5*n, 1e-7, self.SEEDS, rates=False)
         # ^ Have to set the tolerance generously in order to pass.
         pass
+
+    def test_nystrom_onepass_linspace(self):
+        self._test_nystrom_linspace(nystrom_strat='one-pass')
+
+    def test_nystrom_leftfirst_linspace(self):
+        self._test_nystrom_linspace(nystrom_strat='left-first')
+
+    def test_nystrom_rightfirst_linspace(self):
+        self._test_nystrom_linspace(nystrom_strat='right-first')
+
+    def test_nystrom_onepass_logspace(self):
+        self._test_nystrom_logspace(nystrom_strat='one-pass')
+
+    def test_nystrom_leftfirst_logspace(self):
+        self._test_nystrom_logspace(nystrom_strat='left-first')
+
+    def test_nystrom_rightfirst_logspace(self):
+        self._test_nystrom_logspace(nystrom_strat='right-first')
 
 
 class TestSPS2(TestSaddleSolver):
