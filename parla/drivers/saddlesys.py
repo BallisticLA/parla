@@ -111,7 +111,7 @@ class SPS1(SaddleSolver):
 
     DOC_STR = SaddleSolver.TEMPLATE_DOC_STR % INTERFACE_FIELDS
 
-    NYSTROM_STATEGIES = {'one-pass', 'left-first', 'right-first'}
+    NYSTROM_STATEGIES = {'left-first', 'right-first'}
 
     def __init__(self, sketch_op_gen,
                  sampling_factor: int,
@@ -121,14 +121,13 @@ class SPS1(SaddleSolver):
         if iterative_solver is None:
             iterative_solver = dsad.PcSS1()
         self.iterative_solver = iterative_solver
-        self.nystrom_strategy = 'one-pass'
+        self.nystrom_strategy = 'left-first'
         pass
 
     @misc.set_docstring(DOC_STR)
     def __call__(self, A, b, c, delta, tol, iter_lim, rng, logging=True):
         m, n = A.shape
         sqrt_delta = np.sqrt(delta)
-        # d = dim_checks(self.sampling_factor, m, n)
         d = int(self.sampling_factor * n)
         rng = np.random.default_rng(rng)
         assert self.nystrom_strategy in self.NYSTROM_STATEGIES
@@ -154,14 +153,7 @@ class SPS1(SaddleSolver):
             M, U, sigma, Vh = rpc.svd_right_precond(A_ske)
             log.time_factor = quick_time() - tic
         else:  # delta == 0
-            if self.nystrom_strategy == 'one-pass':
-                # This is only loosely "Nystrom-like".
-                S = self.sketch_op_gen(d, m, rng)
-                A_ske = S @ A
-                tic = quick_time()
-                M, U, sigma, Vh = rpc.svd_right_precond(A_ske)
-                log.time_factor = quick_time() - tic
-            elif self.nystrom_strategy == 'right_first':
+            if self.nystrom_strategy == 'right_first':
                 # Computes a Nystrom approximation of A'A.
                 # This squares the condition num. of the preconditioner gen problem
                 tic = quick_time()
