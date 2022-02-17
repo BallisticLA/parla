@@ -144,7 +144,7 @@ class TestSaddleSolver(unittest.TestCase):
         for seed in seeds:
             rng = np.random.default_rng(seed)
             ath.result = alg(ath.A, ath.b, ath.c, ath.delta, alg_tol, iter_lim, rng,
-                             logging=rates)
+                             logging=True)
             ath.test_normal_eq_residual(test_tol)
             ath.test_block_residual(test_tol)
             ath.test_delta_xy(test_tol)
@@ -187,10 +187,10 @@ class TestSaddleSolver(unittest.TestCase):
         spectrum = np.linspace(cond_num ** 0.5, cond_num ** -0.5, num=n)
 
         ath = make_simple_prob(m, n, spectrum, 0.0, rng)
-        self.run_ath(ath, alg, 0.0, n, 1e-10, self.SEEDS)
+        self.run_ath(ath, alg, 0.0, n, 1e-9, self.SEEDS)
 
         ath = make_simple_prob(m, n, spectrum, 1.0, rng)
-        self.run_ath(ath, alg, 0.0, n, 1e-10, self.SEEDS)
+        self.run_ath(ath, alg, 0.0, n, 1e-9, self.SEEDS)
 
     def _test_tiny_scale(self, alg, outer_seed=0):
         rng = np.random.default_rng(outer_seed)
@@ -229,6 +229,51 @@ class TestSPS1(TestSaddleSolver):
     def test_tiny_scale(self):
         alg = TestSPS1.default_config()
         self._test_tiny_scale(alg)
+
+
+class TestSPS1_Nystrom(TestSaddleSolver):
+
+    @staticmethod
+    def default_config():
+        alg = SPS1(
+            sketch_op_gen=oblivious.SkOpGA(),
+            sampling_factor=0.85,
+            iterative_solver=dsad.PcSS1()
+        )
+        return alg
+
+    def _test_nystrom_linspace(self, nystrom_strat):
+        m, n, cond_num = 1000, 100, 1e5
+        alg = self.default_config()
+        alg.nystrom_strategy = nystrom_strat
+        spectrum = np.linspace(cond_num ** 0.5, cond_num ** -0.5, num=n)
+        rng = np.random.default_rng(0)
+        ath = make_simple_prob(m, n, spectrum, 0.0, rng)
+        self.run_ath(ath, alg, 1e-12, n, 1e-7, self.SEEDS, rates=False)
+        pass
+
+    def _test_nystrom_logspace(self, nystrom_strat):
+        m, n, cond_num = 1000, 100, 1e5
+        alg = self.default_config()
+        alg.nystrom_strategy = nystrom_strat
+        spectrum = np.logspace(np.log10(cond_num)/2, -np.log10(cond_num)/2, num=n)
+        rng = np.random.default_rng(0)
+        ath = make_simple_prob(m, n, spectrum, 0.0, rng)
+        self.run_ath(ath, alg, 1e-12, n, 1e-7, self.SEEDS, rates=False)
+        # ^ Have to set the tolerance generously in order to pass.
+        pass
+
+    def test_nystrom_leftfirst_linspace(self):
+        self._test_nystrom_linspace(nystrom_strat='left-first')
+
+    def test_nystrom_rightfirst_linspace(self):
+        self._test_nystrom_linspace(nystrom_strat='right-first')
+
+    def test_nystrom_leftfirst_logspace(self):
+        self._test_nystrom_logspace(nystrom_strat='left-first')
+
+    def test_nystrom_rightfirst_logspace(self):
+        self._test_nystrom_logspace(nystrom_strat='right-first')
 
 
 class TestSPS2(TestSaddleSolver):

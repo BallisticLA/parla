@@ -1,9 +1,6 @@
 import numpy as np
 import scipy.linalg as la
-from scipy.sparse import linalg as sparla
-
 from parla.comps.determiter.lsqr import lsqr
-from parla.comps.determiter.cg import cg
 from parla.comps.preconditioning import a_lift_precond
 
 
@@ -94,26 +91,36 @@ class PcSS1(PrecondSaddleSolver):
     """
 
     def __call__(self, A, b, c, delta, tol, iter_lim, R, upper_tri, z0):
+        m, n = A.shape
         if b is None:
-            b = np.zeros(A.shape[0])
+            b = np.zeros(m)
         k = 1 if b.ndim == 1 else b.shape[1]
         if k != 1:
             raise NotImplementedError()
-        n = A.shape[1]  # == R.shape[0]
 
         if upper_tri:
             raise NotImplementedError()
-
-        # Note to Riley: refer to page 28 of your notebook
-        work1 = np.zeros(n)
-        work2 = np.zeros(A.shape[0])
+        # inefficiently recover the orthogonal columns of M
+        work2 = np.zeros(m)
+        pc_dim = R.shape[1]
+        work1 = np.zeros(pc_dim)
+        fullrank_precond = pc_dim == n
+        if not fullrank_precond:
+            inv_sing_vals = la.norm(R, axis=0)
+            V = R / inv_sing_vals
+            R /= inv_sing_vals[-1]
+            work3 = np.zeros(n)
 
         def mv_sp(vec):
+            # The preconditioner is RR' + (I - VV')
             np.dot(R.T, vec, out=work1)
-            return R @ work1
-
-        M_sp = sparla.LinearOperator(shape=(n, n),
-                                     matvec=mv_sp, rmatvec=mv_sp)
+            res = np.dot(R, work1)
+            if not fullrank_precond:
+                res += vec
+                np.dot(V.T, vec, out=work1)
+                np.dot(V, work1, out=work3)
+                res -= work3
+            return res
 
         def mv_gram(vec):
             np.dot(A, vec, out=work2)
@@ -121,23 +128,45 @@ class PcSS1(PrecondSaddleSolver):
             res += delta * vec
             return res
 
-        gram = sparla.LinearOperator(shape=(n, n),
-                                     matvec=mv_gram, rmatvec=mv_gram)
-
         rhs = A.T @ b
         if c is not None:
             rhs -= c
 
-        if z0 is None:
-            x0 = None
+        if z0 is None or (not fullrank_precond):
+            # TODO: proper initialization with low-rank preconditioners
+            x = np.zeros(n)
         else:
-            x0 = R @ z0
+            x = R @ z0
 
-        result = cg(gram, rhs, x0, tol, iter_lim, M_sp, None, None)
-        x_star = result[0]
-        y_star = b - A @ x_star
+        residuals = -np.ones(iter_lim)
+        r = rhs - mv_gram(x)
+        d = mv_sp(r)
+        delta1_old = np.dot(r, d)
+        delta1_new = delta1_old
+        rel_sq_tol = (delta1_old * tol) * tol
+        rel_sq_tol = max(rel_sq_tol, 1e-20)
 
-        result = (x_star, y_star, result[2])
+        i = 0
+        while i < iter_lim and delta1_new > rel_sq_tol:
+            residuals[i] = delta1_old
+            q = mv_gram(d)
+            alpha = delta1_new / np.dot(d, q)
+            x += alpha * d
+            if i % 10 == 0:
+                r = rhs - mv_gram(x)
+            else:
+                r -= alpha * q
+            s = mv_sp(r)
+            delta1_old = delta1_new
+            delta1_new = np.dot(r, s)
+            beta = delta1_new / delta1_old
+            d = s + beta*d
+            i += 1
+
+        y = b - A @ x
+        residuals = residuals[:i]
+
+        result = (x, y, residuals)
 
         return result
 
