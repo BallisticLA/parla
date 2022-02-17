@@ -13,5 +13,8 @@ from parla.comps.sketchers.aware import RS1, RowSketcher
 from parla.comps.qb import QB1, QB2, QB3, QBDecomposer
 from parla.comps.rangefinders import RF1, RangeFinder
 from parla.drivers.least_squares import SPO, SSO1, OverLstsqSolver
+from parla.drivers.least_squares import SPU1, UnderLstsqSolver
+from parla.drivers.saddlesys import SaddleSolver, SPS1, SPS2, SketchAndPrecondLog
 from parla.drivers.svd import SVD1, SVDecomposer
+from parla.drivers.evd import EVD1, EVD2, EVDecomposer
 
