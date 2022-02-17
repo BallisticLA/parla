@@ -162,7 +162,8 @@ class SPS1(SaddleSolver):
                 rso_ = RS1(self.sketch_op_gen, 0, ulaw.orth, 1)
                 evd_ = EVD2(rso_)
                 V, lamb = evd_(gram_lo, k=d, tol=np.NaN, over=0, rng=rng)
-                M = V / lamb
+                lamb += delta
+                M = V / np.sqrt(lamb)
                 log.time_factor = quick_time() - tic
                 log.time_sketch = 0.0  # attribute everything (incorrectly) to factoring
             else:
@@ -177,6 +178,7 @@ class SPS1(SaddleSolver):
                 V = ulaw.orth(A_ske.T)  # A_ske.T is just a sample from the range of A'A.
                 A_sample = A @ V
                 U, sigma, Wt = la.svd(A_sample)
+                sigma += (delta**0.5)
                 M = V @ (Wt.T / sigma)
                 log.time_factor = quick_time() - tic
             # end if: preconditioner generation via Nystrom

@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.linalg as la
+from parla.comps.determiter.pcg import pcg
 from parla.comps.determiter.lsqr import lsqr
 from parla.comps.preconditioning import a_lift_precond
 
@@ -111,7 +112,7 @@ class PcSS1(PrecondSaddleSolver):
             R /= inv_sing_vals[-1]
             work3 = np.zeros(n)
 
-        def mv_sp(vec):
+        def mv_pre(vec):
             # The preconditioner is RR' + (I - VV')
             np.dot(R.T, vec, out=work1)
             res = np.dot(R, work1)
@@ -138,34 +139,9 @@ class PcSS1(PrecondSaddleSolver):
         else:
             x = R @ z0
 
-        residuals = -np.ones(iter_lim)
-        r = rhs - mv_gram(x)
-        d = mv_sp(r)
-        delta1_old = np.dot(r, d)
-        delta1_new = delta1_old
-        rel_sq_tol = (delta1_old * tol) * tol
-        rel_sq_tol = max(rel_sq_tol, 1e-20)
-
-        i = 0
-        while i < iter_lim and delta1_new > rel_sq_tol:
-            residuals[i] = delta1_old
-            q = mv_gram(d)
-            alpha = delta1_new / np.dot(d, q)
-            x += alpha * d
-            if i % 10 == 0:
-                r = rhs - mv_gram(x)
-            else:
-                r -= alpha * q
-            s = mv_sp(r)
-            delta1_old = delta1_new
-            delta1_new = np.dot(r, s)
-            beta = delta1_new / delta1_old
-            d = s + beta*d
-            i += 1
+        x, residuals = pcg(mv_gram, rhs, mv_pre, iter_lim, tol, x)
 
         y = b - A @ x
-        residuals = residuals[:i]
-
         result = (x, y, residuals)
 
         return result
