@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.linalg as la
 
 
 def pcg(mv_mat, rhs, mv_pre, iter_lim, tol, x0):
@@ -18,22 +19,26 @@ def pcg(mv_mat, rhs, mv_pre, iter_lim, tol, x0):
     d = mv_pre(r)
     delta1_old = np.dot(r, d)
     delta1_new = delta1_old
-    rel_sq_tol = (delta1_old * tol) * tol
-    rel_sq_tol = max(rel_sq_tol, 1e-20)
+    cur_err = la.norm(r)
+    rel_tol = tol * cur_err
 
     i = 0
-    while i < iter_lim and delta1_new > rel_sq_tol:
-        residuals[i] = delta1_old
+    while i < iter_lim and cur_err > rel_tol:
+        # TODO: provide the option of recording  || r ||_2^2, not just ||M' r||_2^2.
+        #residuals[i] = delta1_old
+        residuals[i] = cur_err
         q = mv_mat(d)
-        alpha = delta1_new / np.dot(d, q)
+        den = np.dot(d, q)  # equal to d'*mat*d
+        alpha = delta1_new / den
         x += alpha * d
         if i % 10 == 0:
             r = rhs - mv_mat(x)
         else:
             r -= alpha * q
+        cur_err = la.norm(r)
         s = mv_pre(r)
         delta1_old = delta1_new
-        delta1_new = np.dot(r, s)
+        delta1_new = np.dot(r, s)  # equal to ||M'r||_2^2.
         beta = delta1_new / delta1_old
         d = s + beta * d
         i += 1

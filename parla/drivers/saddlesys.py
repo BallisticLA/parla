@@ -93,17 +93,17 @@ class SPS1(SaddleSolver):
 
     INTERFACE_FIELDS = (
         """
-    This method can compute solutions to high accuracy. It computes the SVD of
-    a sketch of A, and then calls SciPy's implementation of preconditioned 
-    conjugate gradients (PCG).
+    This method can compute solutions to high accuracy. It constructs a preconditioner
+    by running SVD on a sketch of A, then it calls deterministic preconditioned
+    conjugate gradient.
         """,
-        "Termination criteria used by SciPy's PCG implementation.",
-        "Maximum number of iterations allowed by SciPy's PCG.",
+        "Stop if || (A'A + delta I) x - (A'b - c) ||_2 <= tol.",
+        "Maximum number of iterations allowed by PCG.",
         """
     log : SketchAndPrecondLog
         Contains runtime and per-iterate error metric information.
         The error of an individual iterate (x_i, y_i) is measured as\n
-                || (A'A + delta * I) x_i - (A'b - c) ||_2.\n
+                || (A'A + delta I) x_i - (A'b - c) ||_2.\n
         Note that y_i does not appear in that metric!
         Run help(log) or help(SketchAndPrecondLog) for more information.
         """
@@ -111,7 +111,7 @@ class SPS1(SaddleSolver):
 
     DOC_STR = SaddleSolver.TEMPLATE_DOC_STR % INTERFACE_FIELDS
 
-    NYSTROM_STATEGIES = {'left-first', 'right-first'}
+    NYSTROM_STRATEGIES = {'left', 'right'}
 
     def __init__(self, sketch_op_gen,
                  sampling_factor: int,
@@ -121,7 +121,7 @@ class SPS1(SaddleSolver):
         if iterative_solver is None:
             iterative_solver = dsad.PcSS1()
         self.iterative_solver = iterative_solver
-        self.nystrom_strategy = 'left-first'
+        self.nystrom_strategy = 'left'
         pass
 
     @misc.set_docstring(DOC_STR)
@@ -130,7 +130,7 @@ class SPS1(SaddleSolver):
         sqrt_delta = np.sqrt(delta)
         d = int(self.sampling_factor * n)
         rng = np.random.default_rng(rng)
-        assert self.nystrom_strategy in self.NYSTROM_STATEGIES
+        assert self.nystrom_strategy in self.NYSTROM_STRATEGIES
 
         if b is None:
             b = np.zeros(m)
@@ -152,20 +152,18 @@ class SPS1(SaddleSolver):
             tic = quick_time()
             M, U, sigma, Vh = rpc.svd_right_precond(A_ske)
             log.time_factor = quick_time() - tic
-        else:  # delta == 0
-            if self.nystrom_strategy == 'right_first':
+        else:
+            if self.nystrom_strategy == 'right':
                 # Computes a Nystrom approximation of A'A.
-                # This squares the condition num. of the preconditioner gen problem
                 tic = quick_time()
-                gram = lambda arg: A.T @ (A @ arg)
-                gram_lo = LinearOperator(shape=(n, n), matvec=gram, matmat=gram)
-                rso_ = RS1(self.sketch_op_gen, 0, ulaw.orth, 1)
-                evd_ = EVD2(rso_)
-                V, lamb = evd_(gram_lo, k=d, tol=np.NaN, over=0, rng=rng)
-                lamb += delta
-                M = V / np.sqrt(lamb)
+                S = self.sketch_op_gen(n, d, rng)
+                A_sample = A @ S
+                log.time_sketch = quick_time() - tic
+                tic = quick_time()
+                Q = ulaw.orth(A_sample)
+                A_ske = Q.T @ A
+                M, U, sigma, Vh = rpc.svd_right_precond(A_ske)
                 log.time_factor = quick_time() - tic
-                log.time_sketch = 0.0  # attribute everything (incorrectly) to factoring
             else:
                 # This computes P that solves min||P - A'A|| s.t. ker(P) = ker(A_ske),
                 # where A_ske = S @ A.

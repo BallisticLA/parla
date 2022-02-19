@@ -147,6 +147,7 @@ class PcSS1(PrecondSaddleSolver):
         return result
 
 
+# TODO: update so the error
 class PcSS2(PrecondSaddleSolver):
 
     ERROR_METRIC_INFO = """

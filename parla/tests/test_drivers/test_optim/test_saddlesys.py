@@ -124,11 +124,12 @@ class AlgTestHelper:
           ||   [  I   |     A   ] [y] - [b]   ||   <=   tol
           ||   [ A.T  | -delta*I] [x]   [c]   ||
         """
+        # Assuming y is defined as y = b - Ax, this only differs from
+        # test_normal_eq_constraint in terms of the normalization.
         block1 = self.y_approx + self.A @ self.x_approx - self.b
         block2 = self.A.T @ self.y_approx - self.delta * self.x_approx - self.c
         gap = np.concatenate([block1, block2])
         rel = la.norm(np.hstack((self.b, self.c)))
-        # rel = np.max(self.spec + self.delta)
         nrm = la.norm(gap, ord=2) / (1 + rel)
         self.tester.assertLessEqual(nrm, tol)
 
@@ -157,29 +158,40 @@ class TestSaddleSolver(unittest.TestCase):
                 self.assertLess(fit[1], -0.3)  # decay faster than \exp(-0.3 t)
                 pass
 
+    @staticmethod
+    def get_alg_tol(alg, test_tol):
+        if isinstance(alg, SPS1):
+            return test_tol / 1e3
+        else:
+            return test_tol / 1e6
+
     def _test_linspace_spec(self, alg, outer_seed=0):
         rng = np.random.default_rng(outer_seed)
+        test_tol = 1e-6
+        alg_tol = self.get_alg_tol(alg, test_tol)
 
         m, n, cond_num = 1000, 100, 1e5
         spectrum = np.linspace(cond_num ** 0.5, cond_num ** -0.5, num=n)
 
         ath = make_simple_prob(m, n, spectrum, 0.0, rng)
-        self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
+        self.run_ath(ath, alg, alg_tol, 50, test_tol, self.SEEDS)
 
         ath = make_simple_prob(m, n, spectrum, 0.5, rng)
-        self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
+        self.run_ath(ath, alg, alg_tol, 50, test_tol, self.SEEDS)
 
     def _test_logspace_spec(self, alg, outer_seed=0):
         rng = np.random.default_rng(outer_seed)
+        test_tol = 1e-6
+        alg_tol = self.get_alg_tol(alg, test_tol)
 
         m, n, cond_num = 1000, 100, 1e5
         spec = np.logspace(np.log10(cond_num)/2, -np.log10(cond_num)/2, num=n)
 
         ath = make_simple_prob(m, n, spec, 0.0, rng)
-        self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
+        self.run_ath(ath, alg, alg_tol, 50, test_tol, self.SEEDS)
 
         ath = make_simple_prob(m, n, spec, 0.5, rng)
-        self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
+        self.run_ath(ath, alg, alg_tol, 50, test_tol, self.SEEDS)
 
     def _test_higher_accuracy(self, alg, outer_seed=0):
         rng = np.random.default_rng(outer_seed)
@@ -188,10 +200,10 @@ class TestSaddleSolver(unittest.TestCase):
         spectrum = np.linspace(cond_num ** 0.5, cond_num ** -0.5, num=n)
 
         ath = make_simple_prob(m, n, spectrum, 0.0, rng)
-        self.run_ath(ath, alg, 0.0, n, 1e-9, self.SEEDS)
+        self.run_ath(ath, alg, 1e-12, n, 1e-9, self.SEEDS)
 
         ath = make_simple_prob(m, n, spectrum, 1.0, rng)
-        self.run_ath(ath, alg, 0.0, n, 1e-9, self.SEEDS)
+        self.run_ath(ath, alg, 1e-12, n, 1e-9, self.SEEDS)
 
     def _test_tiny_scale(self, alg, outer_seed=0):
         rng = np.random.default_rng(outer_seed)
@@ -252,7 +264,7 @@ class TestSPS1_Nystrom(TestSaddleSolver):
         rng = np.random.default_rng(0)
         ath = make_simple_prob(m, n, spectrum, reg, rng)
         iter_lim = int(iter_factor * n)
-        self.run_ath(ath, alg, 1e-12, iter_lim, test_tol, self.SEEDS, rates=False)
+        self.run_ath(ath, alg, 1e-10, iter_lim, test_tol, self.SEEDS, rates=False)
         pass
 
     def _test_nystrom_logspace(self, nystrom_strat, reg,
@@ -264,37 +276,36 @@ class TestSPS1_Nystrom(TestSaddleSolver):
         rng = np.random.default_rng(0)
         ath = make_simple_prob(m, n, spectrum, reg, rng)
         iter_lim = int(iter_factor * n)
-        self.run_ath(ath, alg, 1e-12, iter_lim, test_tol, self.SEEDS, rates=False)
-        # ^ Have to set the tolerance generously in order to pass.
+        self.run_ath(ath, alg, 1e-10, iter_lim, test_tol, self.SEEDS, rates=False)
         pass
 
     def test_nystrom_leftfirst_linspace(self):
-        self._test_nystrom_linspace(nystrom_strat='left-first', reg=0.0)
+        self._test_nystrom_linspace(nystrom_strat='left', reg=0.0)
 
     # TODO: verify that it's reasonable to see such slow convergence here
     def test_nystrom_leftfirst_linspace_reg(self):
-        self._test_nystrom_linspace(nystrom_strat='left-first', reg=0.3,
+        self._test_nystrom_linspace(nystrom_strat='left', reg=0.3,
                                     iter_factor=5.0, test_tol=1e-6)
 
     def test_nystrom_rightfirst_linspace(self):
-        self._test_nystrom_linspace(nystrom_strat='right-first', reg=0.0)
+        self._test_nystrom_linspace(nystrom_strat='right', reg=0.0)
 
     # TODO: verify that it's reasonable to see such slow convergence here
     def test_nystrom_rightfirst_linspace_reg(self):
-        self._test_nystrom_linspace(nystrom_strat='right-first', reg=0.3,
+        self._test_nystrom_linspace(nystrom_strat='right', reg=0.3,
                                     iter_factor=5.0, test_tol=1e-6)
 
     def test_nystrom_leftfirst_logspace(self):
-        self._test_nystrom_logspace(nystrom_strat='left-first', reg=0.0)
+        self._test_nystrom_logspace(nystrom_strat='left', reg=0.0)
 
     def test_nystrom_leftfirst_logspace_reg(self):
-        self._test_nystrom_logspace(nystrom_strat='left-first', reg=0.3)
+        self._test_nystrom_logspace(nystrom_strat='left', reg=0.3)
 
     def test_nystrom_rightfirst_logspace(self):
-        self._test_nystrom_logspace(nystrom_strat='right-first', reg=0.0)
+        self._test_nystrom_logspace(nystrom_strat='right', reg=0.0)
 
     def test_nystrom_rightfirst_logspace_reg(self):
-        self._test_nystrom_logspace(nystrom_strat='right-first', reg=0.3)
+        self._test_nystrom_logspace(nystrom_strat='right', reg=0.3)
 
 
 class TestSPS2(TestSaddleSolver):
