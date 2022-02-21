@@ -138,7 +138,7 @@ class SPS1(SaddleSolver):
         quick_time = time.time if logging else lambda: 0
         log = SketchAndPrecondLog()
 
-        nystrom_like = d < n and delta == 0.0
+        nystrom_like = d < n
 
         if not nystrom_like:
             # Sketch the data matrix
@@ -162,7 +162,9 @@ class SPS1(SaddleSolver):
                 tic = quick_time()
                 Q = ulaw.orth(A_sample)
                 A_ske = Q.T @ A
-                M, U, sigma, Vh = rpc.svd_right_precond(A_ske)
+                U, sigma, Vh = la.svd(A_ske, full_matrices=False)
+                sigma += delta**0.5
+                M = Vh.T / sigma
                 log.time_factor = quick_time() - tic
             else:
                 # This computes P that solves min||P - A'A|| s.t. ker(P) = ker(A_ske),
@@ -175,7 +177,7 @@ class SPS1(SaddleSolver):
                 tic = quick_time()
                 V = ulaw.orth(A_ske.T)  # A_ske.T is just a sample from the range of A'A.
                 A_sample = A @ V
-                U, sigma, Wt = la.svd(A_sample)
+                U, sigma, Wt = la.svd(A_sample, full_matrices=False)
                 sigma += (delta**0.5)
                 M = V @ (Wt.T / sigma)
                 log.time_factor = quick_time() - tic

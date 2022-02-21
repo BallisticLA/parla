@@ -161,7 +161,7 @@ class TestSaddleSolver(unittest.TestCase):
     @staticmethod
     def get_alg_tol(alg, test_tol):
         if isinstance(alg, SPS1):
-            return test_tol / 1e3
+            return test_tol / 5e3
         else:
             return test_tol / 1e6
 
