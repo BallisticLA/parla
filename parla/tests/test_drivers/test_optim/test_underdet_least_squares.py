@@ -78,6 +78,10 @@ class TestUnderLstsqSolver(unittest.TestCase):
 
     SEEDS = [1, 4, 15, 31, 42]
 
+    STD_TEST_TOL = 1e-10
+
+    STRICT_TEST_TOL = 1e-10
+
     def run_ath(self, ath: AlgTestHelper,
                       uls: UnderLstsqSolver,
                       alg_tol, iter_lim,
@@ -121,7 +125,7 @@ class TestSPU1(TestUnderLstsqSolver):
         spectrum = np.linspace(cond_num ** 0.5, cond_num ** -0.5, num=n)
 
         ath = make_simple_prob(m, n, spectrum, rng)
-        self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
+        self.run_ath(ath, alg, 1e-12, 50, self.STD_TEST_TOL, self.SEEDS)
 
     def test_logspace_spec(self):
         alg = TestSPU1.default_config()
@@ -131,17 +135,17 @@ class TestSPU1(TestUnderLstsqSolver):
         spec = np.logspace(np.log10(cond_num) / 2, -np.log10(cond_num) / 2, num=n)
 
         ath = make_simple_prob(m, n, spec, rng)
-        self.run_ath(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
+        self.run_ath(ath, alg, 1e-12, 50, self.STD_TEST_TOL, self.SEEDS)
 
     def test_higher_accuracy(self):
         alg = TestSPU1.default_config()
         rng = np.random.default_rng(0)
 
-        m, n, cond_num = 500, 50, 1e3
+        m, n, cond_num = 500, 50, 1e5
         spectrum = np.linspace(cond_num ** 0.5, cond_num ** -0.5, num=n)
 
         ath = make_simple_prob(m, n, spectrum, rng)
-        self.run_ath(ath, alg, 0.0, n, 1e-8, self.SEEDS)
+        self.run_ath(ath, alg, 0.0, n, self.STRICT_TEST_TOL, self.SEEDS)
 
     def test_lowrank_linspace_spec(self):
         alg = TestSPU1.default_config()
@@ -151,4 +155,4 @@ class TestSPU1(TestUnderLstsqSolver):
         spectrum = np.linspace(cond_num ** 0.5, cond_num ** -0.5, num=rank)
 
         ath = make_simple_prob(m, n, spectrum, rng)
-        self.run_ath_lowrank(ath, alg, 1e-12, 50, 1e-6, self.SEEDS)
+        self.run_ath_lowrank(ath, alg, 1e-12, 50, self.STD_TEST_TOL, self.SEEDS)

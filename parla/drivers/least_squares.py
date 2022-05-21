@@ -366,7 +366,7 @@ class SPO(OverLstsqSolver):
             log.wrap_up(res[2], la.norm(ar0))
             log.error_desc = self.iterative_solver.ERROR_METRIC_INFO
 
-        return res[0], log
+        return res[0], log, R  # TODO: UNDO ME
 
 
 class UnderLstsqSolver:

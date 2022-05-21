@@ -23,10 +23,10 @@ def pcg(mv_mat, rhs, mv_pre, iter_lim, tol, x0):
     rel_tol = tol * cur_err
 
     i = 0
-    while i < iter_lim and cur_err > rel_tol:
-        # TODO: provide the option of recording  || r ||_2^2, not just ||M' r||_2^2.
-        #residuals[i] = delta1_old
-        residuals[i] = cur_err
+    while i < iter_lim and delta1_new**0.5 > rel_tol:
+        # TODO: provide the option of recording  || r ||_2 AND ||M' r||_2.
+        residuals[i] = delta1_new**0.5
+        # residuals[i] = cur_err
         q = mv_mat(d)
         den = np.dot(d, q)  # equal to d'*mat*d
         alpha = delta1_new / den
@@ -35,7 +35,7 @@ def pcg(mv_mat, rhs, mv_pre, iter_lim, tol, x0):
             r = rhs - mv_mat(x)
         else:
             r -= alpha * q
-        cur_err = la.norm(r)
+        # cur_err = la.norm(r)
         s = mv_pre(r)
         delta1_old = delta1_new
         delta1_new = np.dot(r, s)  # equal to ||M'r||_2^2.

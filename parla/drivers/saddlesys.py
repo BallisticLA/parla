@@ -264,7 +264,7 @@ class SPS2(SaddleSolver):
         pass
 
     @misc.set_docstring(DOC_STR)
-    def __call__(self, A, b, c, delta, tol, iter_lim, rng, logging=False):
+    def __call__(self, A, b, c, delta, tol, iter_lim, rng, logging=True):
         m, n = A.shape
         sqrt_delta = np.sqrt(delta)
         d = dim_checks(self.sampling_factor, m, n)

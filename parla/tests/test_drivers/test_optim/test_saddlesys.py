@@ -107,17 +107,29 @@ class AlgTestHelper:
                                                  la.norm(self.y_approx)))
         self.tester.assertLessEqual(nrm, tol)
 
-    def test_normal_eq_residual(self, tol):
-        """
-        || (A' A + delta*I) x - (A' b - c)|| <= tol
-        """
+    def normal_eq_residual(self):
         rhs = self.A.T @ self.b - self.c
         lhs = self.A.T @ (self.A @ self.x_approx)
         lhs += self.delta * self.x_approx
         gap = rhs - lhs
         nrm = la.norm(gap, ord=2)
         nrm /= np.max(self.spec + self.delta)
+        return nrm
+
+    def test_normal_eq_residual(self, tol):
+        """
+        || (A' A + delta*I) x - (A' b - c)|| <= tol
+        """
+        nrm = self.normal_eq_residual()
         self.tester.assertLessEqual(nrm, tol)
+
+    def block_residual(self):
+        block1 = self.y_approx + self.A @ self.x_approx - self.b
+        block2 = self.A.T @ self.y_approx - self.delta * self.x_approx - self.c
+        gap = np.concatenate([block1, block2])
+        rel = la.norm(np.hstack((self.b, self.c)))
+        nrm = la.norm(gap, ord=2) / (1 + rel)
+        return nrm
 
     def test_block_residual(self, tol):
         """
@@ -126,11 +138,7 @@ class AlgTestHelper:
         """
         # Assuming y is defined as y = b - Ax, this only differs from
         # test_normal_eq_constraint in terms of the normalization.
-        block1 = self.y_approx + self.A @ self.x_approx - self.b
-        block2 = self.A.T @ self.y_approx - self.delta * self.x_approx - self.c
-        gap = np.concatenate([block1, block2])
-        rel = la.norm(np.hstack((self.b, self.c)))
-        nrm = la.norm(gap, ord=2) / (1 + rel)
+        nrm = self.block_residual()
         self.tester.assertLessEqual(nrm, tol)
 
 

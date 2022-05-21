@@ -389,10 +389,11 @@ def lsqr(A, b, damp=0.0, atol=1e-8, btol=1e-8, conlim=1e8,
 
     # Reverse the order here from the original matlab code because
     # there was an error on return when arnorm==0
+    xs = [x]
     arnorm = alfa * beta
     if arnorm == 0:
         print(msg[0])  #TODO: Riley account for this
-        return x, istop, itn, r1norm, r2norm, anorm, acond, arnorm, xnorm, var
+        return xs, istop, itn, r1norm, r2norm, anorm, acond, arnorm, xnorm, var
 
     head1 = '   Itn      x[0]       r1norm     r2norm '
     head2 = ' Compatible    LS      Norm A   Cond A'
@@ -453,6 +454,7 @@ def lsqr(A, b, damp=0.0, atol=1e-8, btol=1e-8, conlim=1e8,
         dk = (1 / rho) * w
 
         x = x + t1 * w
+        xs.append(x.copy())
         w = v + t2 * w
         ddnorm = ddnorm + np.linalg.norm(dk)**2
 
@@ -480,26 +482,7 @@ def lsqr(A, b, damp=0.0, atol=1e-8, btol=1e-8, conlim=1e8,
         res1 = phibar**2
         res2 = res2 + psi**2
         rnorm = sqrt(res1 + res2)
-        #arnorm = alfa * abs(tau)
-        #arnorm /= abs(sn)  # TODO: undo me
-        arnorm = np.linalg.norm(A.T @ (A @ x - b))
-        arnorm = alfa * abs(tau) / abs(sn)
-        #print(actual_arnorm / arnorm)
-        """
-        ^ That ratio is very (very!) close to 1 for a while.
-        Then it starts increasing at a multiplicative rate.
-        E.g., with successive multiplicative increases of error by factors
-        array([1.07442774, 1.34819356, 1.34516765, 1.96579529, 2.00680887,
-               2.13592561, 1.43145659, 1.5514222 , 2.42114458, 2.22311254,
-               2.23184076, 2.05665118, 1.2778845 , 1.9561874 , 2.17610547,
-               2.6290123 , 1.89115942, 2.26865626])
-            
-        Looking into this more, the errors only show up once
-        the true arnorms basically stagnate. In the demo I ran, that
-        was once (condition number / relative error) \\approx 10^16.
-        So the multiplicative error increase makes since, because that's
-        what we expect to actually be happening with a good preconditioner.
-        """
+        arnorm = alfa * abs(tau)
 
         # Distinguish between
         #    r1norm = ||b - Ax|| and
@@ -590,4 +573,4 @@ def lsqr(A, b, damp=0.0, atol=1e-8, btol=1e-8, conlim=1e8,
 
     arnorms = arnorms[arnorms > -1]
 
-    return x, istop, itn, r1norm, r2norm, anorm, acond, arnorms, xnorm, var
+    return xs, arnorms, istop, var, anorm, acond
