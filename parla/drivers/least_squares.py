@@ -289,7 +289,7 @@ class SPO(OverLstsqSolver):
         self.iterative_solver = dsad.PcSS2()  # implements LSQR
 
     @misc.set_docstring(CALL_DOC)
-    def __call__(self, A, b, delta, tol, iter_lim, rng, logging=True):
+    def __call__(self, A, b, delta, tol, iter_lim, rng, logging=True, logging_condnum_precond=False):
         n_rows, n_cols = A.shape
         sqrt_delta = np.sqrt(delta)
         d = dim_checks(self.sampling_factor, n_rows, n_cols)
@@ -310,6 +310,10 @@ class SPO(OverLstsqSolver):
             if delta > 0:
                 A_ske = np.vstack((A_ske, sqrt_delta * np.eye(n_cols)))
             Q, R = la.qr(A_ske, overwrite_a=True, mode='economic')
+            if logging_condnum_precond == True:
+                #A_pre = la.solve_triangular(R, A.T, trans='T').T
+                #log.condnum_precond = np.linalg.cond(A_pre)
+                log.condnum_precond = np.linalg.cond(A @ la.inv(R))
             log.time_factor = quick_time() - tic
             tic = quick_time()
             b_ske = S @ b
