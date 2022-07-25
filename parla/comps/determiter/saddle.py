@@ -107,9 +107,15 @@ class PcSS1(PrecondSaddleSolver):
         work1 = np.zeros(pc_dim)
         fullrank_precond = pc_dim == n
         if not fullrank_precond:
-            inv_sing_vals = la.norm(R, axis=0)
-            V = R / inv_sing_vals
-            R /= inv_sing_vals[-1]
+            sing_vals = 1 / la.norm(R, axis=0)
+            V = R * sing_vals
+            # Update sing_vals = sqrt(sing_vals**2 + delta).
+            #   (The method below isn't a stable way of doing that.)
+            sing_vals **= 2
+            sing_vals += delta
+            sing_vals **= 0.5
+            R[:] = V[:]
+            R /= (sing_vals/sing_vals[-1])
             work3 = np.zeros(n)
 
         def mv_pre(vec):

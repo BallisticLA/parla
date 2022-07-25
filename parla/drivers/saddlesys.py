@@ -163,7 +163,6 @@ class SPS1(SaddleSolver):
                 Q = ulaw.orth(A_sample)
                 A_ske = Q.T @ A
                 U, sigma, Vh = la.svd(A_ske, full_matrices=False)
-                sigma += delta**0.5
                 M = Vh.T / sigma
                 log.time_factor = quick_time() - tic
             else:
@@ -178,7 +177,6 @@ class SPS1(SaddleSolver):
                 V = ulaw.orth(A_ske.T)  # A_ske.T is just a sample from the range of A'A.
                 A_sample = A @ V
                 U, sigma, Wt = la.svd(A_sample, full_matrices=False)
-                sigma += (delta**0.5)
                 M = V @ (Wt.T / sigma)
                 log.time_factor = quick_time() - tic
             # end if: preconditioner generation via Nystrom
