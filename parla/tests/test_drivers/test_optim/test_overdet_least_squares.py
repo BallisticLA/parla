@@ -234,17 +234,19 @@ class TestOverLstsqSolver(unittest.TestCase):
             ath.test_x_angle(test_tol)
             ath.test_objective(test_tol)
 
-    def _test_convergence_rate(self, ath, alg, ridge=False):
+    def _test_convergence_rate(self, ath, alg, ridge=False, log_pc_cond=False):
         rng = np.random.default_rng(34998751340)
         delta = 0.25 if ridge else 0.0
         ath.tester = self
         max_iter = 5 * ath.A.shape[1]
-        x, log = alg(ath.A, ath.b, delta, 1e-12, max_iter, rng, logging=True)
+        x, log = alg(ath.A, ath.b, delta, 1e-12, max_iter, rng, logging=True, logging_condnum_precond=log_pc_cond)
         fit, r2 = ustats.loglinear_fit(np.arange(log.errors.size-1),
                                        log.errors[1:])
         self.assertGreaterEqual(r2, 0.95)  # linear convergence
         self.assertLess(fit[1], self.CONV_RATE)  # decay faster than \exp(-0.3 t)
         self.assertLessEqual(log.errors[-1], log.errors[0]*1e-10)
+        if log_pc_cond:
+            self.assertLessEqual(log.condnum_precond, 10.0)
         if ridge:
             m, n = ath.A.shape
             scaled_I = delta**0.5 * np.eye(n)
@@ -285,9 +287,9 @@ class TestSPO(TestOverLstsqSolver):
         pass
 
     def test_sjlt_qr(self):
-        sap = rlsq.SPO(oblivious.SkOpSJ(vec_nnz=8), sampling_factor=2)
+        sap = rlsq.SPO(oblivious.SkOpSJ(vec_nnz=8), sampling_factor=2, mode='qr')
         ath = inconsistent_gen()
-        self._test_convergence_rate(ath, sap, ridge=False)
+        self._test_convergence_rate(ath, sap, ridge=False, log_pc_cond=True)
         self._test_convergence_rate(ath, sap, ridge=True)
         ath = inconsistent_stackid()
         self._test_convergence_rate(ath, sap, ridge=False)
@@ -295,17 +297,17 @@ class TestSPO(TestOverLstsqSolver):
 
     def test_consistent_tall_qr(self):
         ath = consistent_tall()
-        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=1)
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=1, mode='qr')
         self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
 
     def test_consistent_square_qr(self):
         ath = consistent_square()
-        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=1)
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=1, mode='qr')
         self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
 
     def test_inconsistent_orth_qr(self):
         ath = inconsistent_orthog()
-        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3)
+        sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3, mode='qr')
         self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
 
     def test_inconsistent_gen_qr(self):
