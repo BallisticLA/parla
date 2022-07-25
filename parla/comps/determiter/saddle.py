@@ -3,7 +3,7 @@ import scipy.linalg as la
 from scipy.sparse import linalg as sparla
 
 from parla.comps.determiter.lsqr import lsqr
-from parla.comps.determiter.cg import cg
+from parla.comps.determiter.pcg import pcg
 from parla.comps.preconditioning import a_lift_precond
 
 
@@ -90,29 +90,48 @@ class PrecondSaddleSolver:
 class PcSS1(PrecondSaddleSolver):
 
     ERROR_METRIC_INFO = """
-        2-norm of the residual from the normal equations
+        2-norm of the residual from the preconditioned normal equations
     """
 
     def __call__(self, A, b, c, delta, tol, iter_lim, R, upper_tri, z0):
+        m, n = A.shape
         if b is None:
-            b = np.zeros(A.shape[0])
+            b = np.zeros(m)
         k = 1 if b.ndim == 1 else b.shape[1]
         if k != 1:
             raise NotImplementedError()
-        n = A.shape[1]  # == R.shape[0]
 
         if upper_tri:
             raise NotImplementedError()
+        # inefficiently recover the orthogonal columns of M
+        work2 = np.zeros(m)
+        pc_dim = R.shape[1]
+        work1 = np.zeros(pc_dim)
 
-        work1 = np.zeros(n)
-        work2 = np.zeros(A.shape[0])
+        if delta > 0:
+            sing_vals = 1 / la.norm(R, axis=0)
+            V = R * sing_vals
+            # Update sing_vals = sqrt(sing_vals**2 + delta).
+            #   (The method below isn't a stable way of doing that.)
+            sing_vals **= 2
+            sing_vals += delta
+            sing_vals **= 0.5
+            R[:] = V[:]
+            R /= (sing_vals/sing_vals[-1])
+            work3 = np.zeros(n)
 
-        def mv_sp(vec):
+        fullrank_precond = pc_dim == n
+
+        def mv_pre(vec):
+            # The preconditioner is RR' + (I - VV')
             np.dot(R.T, vec, out=work1)
-            return R @ work1
-
-        M_sp = sparla.LinearOperator(shape=(n, n),
-                                     matvec=mv_sp, rmatvec=mv_sp)
+            res = np.dot(R, work1)
+            if not fullrank_precond:
+                res += vec
+                np.dot(V.T, vec, out=work1)
+                np.dot(V, work1, out=work3)
+                res -= work3
+            return res
 
         def mv_gram(vec):
             np.dot(A, vec, out=work2)
@@ -120,23 +139,20 @@ class PcSS1(PrecondSaddleSolver):
             res += delta * vec
             return res
 
-        gram = sparla.LinearOperator(shape=(n, n),
-                                     matvec=mv_gram, rmatvec=mv_gram)
-
         rhs = A.T @ b
         if c is not None:
             rhs -= c
 
-        if z0 is None:
-            x0 = None
+        if z0 is None or (not fullrank_precond):
+            # TODO: proper initialization with low-rank preconditioners
+            x = np.zeros(n)
         else:
-            x0 = R @ z0
+            x = R @ z0
 
-        result = cg(gram, rhs, x0, tol, iter_lim, M_sp, None, None)
-        x_star = result[0]
-        y_star = b - A @ x_star
+        x, residuals = pcg(mv_gram, rhs, mv_pre, iter_lim, tol, x)
 
-        result = (x_star, y_star, result[2])
+        y = b - A @ x
+        result = (x, y, residuals)
 
         return result
 
@@ -145,7 +161,6 @@ class PcSS2(PrecondSaddleSolver):
 
     ERROR_METRIC_INFO = """
         2-norm of the residual from the preconditioned normal equations
-        (preconditioning on the left and right).
     """
 
     def __call__(self, A, b, c, delta, tol, iter_lim, R, upper_tri, z0):
@@ -232,10 +247,11 @@ class PcSS3(PrecondSaddleSolver):
         # workspace and error with x=0
         iter_lim = min(iter_lim, 5*n)
         errors = -np.ones(iter_lim + 2)
-        work_gram = np.zeros(m)
         rank = M.shape[1]
         work_rhs1 = np.zeros(rank)
         work_rhs2 = np.zeros(n)
+        work_ax1 = np.zeros(m)
+        work_ax2 = np.zeros(m)
         x = np.zeros(n)
         dx = np.zeros(n)
         rhs = A.T @ b
@@ -243,45 +259,55 @@ class PcSS3(PrecondSaddleSolver):
         err = la.norm(work_rhs1)
         rel_tol = err * tol
 
-        def step_size(dx_):
-            Adx = A @ dx_
-            num = Adx @ (b - A @ x)
-            den = Adx @ Adx
+        def step_size(dx_, work_ax1_, work_ax2_):
+            # Adx = A @ dx_
+            # num = Adx @ (b - A @ x)
+            # den = Adx @ Adx
+            np.dot(A, dx_, out=work_ax1_)
+            den = np.linalg.norm(work_ax1_)
+            work_ax1_ /= den
+            np.dot(A, x, out=work_ax2_)
+            work_ax2_ -= b
+            neg_num = work_ax1_ @ work_ax2_
             if den > 0:
-                return num / den
+                return -neg_num / den
             nrm_dx = la.norm(dx_)
             if nrm_dx > 0:
-                alpha = x @ dx_ / (nrm_dx ** 2)
-                return alpha
+                alpha_ = x @ dx_ / (nrm_dx ** 2)
+                return alpha_
             return np.NaN
 
         # First step: start by computing dx, end by computing error
         if z0 is not None and la.norm(z0) > 0:
             np.dot(M, z0, out=dx)
-            alpha = step_size(dx)
+            alpha = step_size(dx, work_ax1, work_ax2)
             dx *= alpha
             x += dx
-            np.dot(A, dx, out=work_gram)
-            np.dot(A.T, work_gram, out=work_rhs2)
+            np.dot(A, dx, out=work_ax1)
+            np.dot(A.T, work_ax1, out=work_rhs2)
             rhs -= work_rhs2
             np.dot(M.T, rhs, out=work_rhs1)
             err = la.norm(work_rhs1)
+            errors[0] = err
 
         # main loop; start by computing dx, end by computing error
         it = 1
         iter_lim += 1
         while it < iter_lim and err > rel_tol:
             np.dot(M, work_rhs1, out=dx)  # dx = M M' rhs
-            alpha = step_size(dx)
+            alpha = step_size(dx, work_ax1, work_ax2)
             if np.isnan(alpha) or alpha == 0:
                 errors[it] = err
                 break
             dx *= alpha
             x += dx
-            np.dot(A, dx, out=work_gram)
-            np.dot(A.T, work_gram, out=work_rhs2)
+            np.dot(A, dx, out=work_ax1)
+            np.dot(A.T, work_ax1, out=work_rhs2)
             if it % 50 == 0:
-                rhs = A.T @ (b - A @ x)
+                np.dot(A, x, out=work_ax1)
+                work_ax1 -= b
+                work_ax1 *= -1
+                np.dot(A.T, work_ax1, out=rhs)
             else:
                 rhs -= work_rhs2  # rhs -= alpha * (A'A dx + \delta dx)
             np.dot(M.T, rhs, out=work_rhs1)

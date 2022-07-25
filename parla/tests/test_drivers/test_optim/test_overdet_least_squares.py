@@ -432,7 +432,7 @@ class TestSPO_NS(TestOverLstsqSolver):
         ath = consistent_tall()
         sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=1, mode='svd')
         sap.iterative_solver = PcSS3()
-        self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
+        self.run_consistent(ath, sap, 0.0, 1, 1e-10, self.SEEDS)
 
     def test_consistent_square_svd(self):
         ath = consistent_square()

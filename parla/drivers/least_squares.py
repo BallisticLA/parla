@@ -208,47 +208,34 @@ class SPO(OverLstsqSolver):
     """A sketch-and-precondition approach to overdetermined ordinary least
     squares. This implementation uses QR, Cholesky, or SVD to obtain the
     preconditioner, and it uses LSQR for the iterative method.
-
     Before starting LSQR, we run a basic sketch-and-solve (for free, given
     our decomposition of the sketched data matrix) to obtain a solution
     x_ske. If ||A x_ske - b||_2 < ||b||_2, then we initialize LSQR at x_ske.
-
     If A is rank-deficient, then the preconditioner must be obtained by SVD.
-
     References
     ----------
     This implementation was inspired by Blendenpik (AMT:2010) and LSRN (MSM:2014).
     The differences relative to [AMT:2010, Algorithm 1] are
-
         (1) We make no assumption on the distribution of the sketching matrix
             which is used to form the preconditioner. Blendenpik only used
             SRTTs (Walsh-Hadamard, discrete cosine, discrete Hartley).
-
         (2) We let the user specify the exact embedding dimension, as
             floor(self.oversampling_factor * A.shape[1]).
-
         (3) We do not zero-pad A with additional rows. Such zero padding
             might be desirable to facilitate rapid application of SRTT
             sketching operators. It is possible to implement an SRTT operator
             so that it performs zero-padding internally.
-
         (4) We do not perform any checks on the quality of the preconditioner.
-
         (5) We initialize the iterative solver (LSQR) at the better of the two
             solutions given by either the zero vector or the output of
             sketch-and-solve.
-
         (6) We let the user choose whether the upper-triangular preconditioner
             is obtained by QR or Cholesky. (They are equivalent in exact
             arithmetic but have different numerical profiles.)
-
     The differences relative to [MSM:2014, Algorithm 1] are
-
         (1) LSRN uses the Chebyshev semi-iterative method instead of LSQR.
-
         (1) We make no assumption on the distribution of the sketching operator.
             LSRN uses a Gaussian sketching operator.
-
         (2) We provide the option of intelligently initializing the iterative
             solver (LSQR) with the better of the two solutions given by the
             zero vector and the result of sketch-and-solve.
@@ -268,13 +255,13 @@ class SPO(OverLstsqSolver):
         """
     log : SketchAndPrecondLog
         Contains runtime and per-iterate error metric information.
-        
+
         Let M denote the preconditioner obtained by sketching.
         The error of an individual iterate x_i is measured as\n
                 || (A_new M)' (A_new x_i - b_new) ||_2,\n
         where A_new is formed by stacking A on top of an identity matrix scaled
         by \\sqrt{delta} and b_new is formed by stacking b on top of the zero vector.
-        
+
         Under typical parameter settings, the condition number of (A_new M) is <= 10.
         Run help(log) or help(SketchAndPrecondLog) for more information.
         """
@@ -310,10 +297,10 @@ class SPO(OverLstsqSolver):
             if delta > 0:
                 A_ske = np.vstack((A_ske, sqrt_delta * np.eye(n_cols)))
             Q, R = la.qr(A_ske, overwrite_a=True, mode='economic')
-            if logging_condnum_precond == True:
-                #A_pre = la.solve_triangular(R, A.T, trans='T').T
-                #log.condnum_precond = np.linalg.cond(A_pre)
-                log.condnum_precond = np.linalg.cond(A @ la.inv(R))
+            if logging_condnum_precond:
+                A_pre = la.solve_triangular(R, A.T, trans='T').T
+                log.condnum_precond = np.linalg.cond(A_pre)
+                #log.condnum_precond = np.linalg.cond(A @ la.inv(R))
             log.time_factor = quick_time() - tic
             tic = quick_time()
             b_ske = S @ b
@@ -334,14 +321,15 @@ class SPO(OverLstsqSolver):
             x_ske = la.solve_triangular(R, z_ske, lower=False)
         elif self.mode == 'svd':
             tic = quick_time()
-            if delta > 0:
-                A_ske = np.vstack((A_ske, sqrt_delta * np.eye(n_cols)))
             R, U, sigma, Vh = rpc.svd_right_precond(A_ske)
             log.time_factor = quick_time() - tic
             tic = quick_time()
             b_ske = S @ b
             z_ske = U[:d, :].T @ b_ske
-            x_ske = R @ z_ske
+            if delta == 0:
+                x_ske = R @ z_ske
+            else:
+                x_ske = Vh.T @ (z_ske / np.sqrt(sigma**2 + delta))
         else:
             raise ValueError()
 
