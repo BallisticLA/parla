@@ -229,15 +229,15 @@ class PcSS3(PrecondSaddleSolver):
         #       (0b) r = A'b - c - A'A x - \delta x
         #
         # Iterate by computing
-        #       (2) dx = M M' r
-        #       (3) x += dx
-        #       (1) r = A'b - c - A'A x - \delta x
-        #               Equivalently,  r -= (A'A dx - delta * dx)
+        #       (2) dx  = M M' r
+        #       (3) x  += dx
+        #       (1) rhs = A'b - c - A'A x - \delta x
+        #               Equivalently,  rhs -= (A'A dx - delta * dx)
         #
         # Termination criteria. We mimick SciPy LSQR w/ preconditioned A.
-        #     metric1 = ||M'A' r|| / (scale * ||r||)
-        #     metric2 = ||r|| / (||b|| + scale)
-        # where scale = ||A M||_{F}. This is equivalent to how we call LSQR,
+        #     metric1 = ||M'A' y|| / (scale * ||y||)
+        #     metric2 = ||y|| / (||b|| + scale)
+        # where scale = ||A M||_{F} and y = b - Ax. This is equivalent to how we call LSQR,
         # except that LSQR maintains a sequence of non-decreasing values for
         # "scale" that converge to ||A M||_F. We terminate once min(metric1,
         # metric2) falls below "tol".
@@ -257,7 +257,7 @@ class PcSS3(PrecondSaddleSolver):
         rhs = A.T @ b
         np.dot(M.T, rhs, out=work_rhs1)
         err = la.norm(work_rhs1)
-        rel_tol = err * tol
+        nrm_b = la.norm(b)
 
         def step_size(dx_, work_ax1_, work_ax2_):
             # Adx = A @ dx_
@@ -267,20 +267,21 @@ class PcSS3(PrecondSaddleSolver):
             den = np.linalg.norm(work_ax1_)
             work_ax1_ /= den
             np.dot(A, x, out=work_ax2_)
-            work_ax2_ -= b
+            work_ax2_ -= b  # work_ax2_ = Ax - b
+            norm_Ax_minus_b = la.norm(work_ax2_)
             neg_num = work_ax1_ @ work_ax2_
             if den > 0:
-                return -neg_num / den
+                return -neg_num / den, norm_Ax_minus_b
             nrm_dx = la.norm(dx_)
             if nrm_dx > 0:
                 alpha_ = x @ dx_ / (nrm_dx ** 2)
-                return alpha_
-            return np.NaN
+                return alpha_, norm_Ax_minus_b
+            return np.NaN, norm_Ax_minus_b
 
         # First step: start by computing dx, end by computing error
         if z0 is not None and la.norm(z0) > 0:
             np.dot(M, z0, out=dx)
-            alpha = step_size(dx, work_ax1, work_ax2)
+            alpha, nrm_y = step_size(dx, work_ax1, work_ax2)
             dx *= alpha
             x += dx
             np.dot(A, dx, out=work_ax1)
@@ -289,13 +290,18 @@ class PcSS3(PrecondSaddleSolver):
             np.dot(M.T, rhs, out=work_rhs1)
             err = la.norm(work_rhs1)
             errors[0] = err
+            metric1 = err / (n * nrm_y)
+            metric2 = nrm_y / (nrm_b + n)
+        else:
+            metric1 = err / (n * nrm_b)
+            metric2 = nrm_b / (nrm_b + n)
 
         # main loop; start by computing dx, end by computing error
         it = 1
         iter_lim += 1
-        while it < iter_lim and err > rel_tol:
+        while it < iter_lim and min(metric1, metric2) > tol:
             np.dot(M, work_rhs1, out=dx)  # dx = M M' rhs
-            alpha = step_size(dx, work_ax1, work_ax2)
+            alpha, nrm_y = step_size(dx, work_ax1, work_ax2)
             if np.isnan(alpha) or alpha == 0:
                 errors[it] = err
                 break
@@ -314,6 +320,12 @@ class PcSS3(PrecondSaddleSolver):
             err = la.norm(work_rhs1)
             errors[it] = err
             it += 1
+            # Termination criteria. We mimick SciPy LSQR w/ preconditioned A.
+            #     metric1 = ||M'A' y|| / (scale * ||y||)
+            #     metric2 = ||y|| / (||b|| + scale)
+            # where scale = n and y = b - Ax.
+            metric1 = err / (n * nrm_y)
+            metric2 = nrm_y / (nrm_b + n)
 
         errors = errors[errors > -1]
 
