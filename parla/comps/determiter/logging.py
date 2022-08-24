@@ -60,6 +60,7 @@ class SketchAndPrecondLog:
         self.errors = None
         self.error_desc = """Fill in."""
         self.condnum_precond = None
+        self.return_code = -1
 
     @property
     def time_setup(self):

@@ -96,7 +96,7 @@ def _sym_ortho(a, b):
 
 
 def lsqr(A, b, damp=0.0, atol=1e-8, btol=1e-8, conlim=1e8,
-         iter_lim=None, show=False, calc_var=False, x0=None):
+         iter_lim=None, show=False, calc_var=False, x0=None, orig_xnorm=True):
     """Find the least-squares solution to a large, sparse, linear system
     of equations.
 
@@ -349,8 +349,12 @@ def lsqr(A, b, damp=0.0, atol=1e-8, btol=1e-8, conlim=1e8,
     dampsq = damp**2
     ddnorm = 0
     res2 = 0
-    xnorm = 0
-    xxnorm = 0
+    if x0 is None or orig_xnorm:
+        xnorm = 0
+        xxnorm = 0
+    else:
+        xnorm = np.linalg.norm(x0)
+        xxnorm = xnorm**2
     z = 0
     cs2 = -1
     sn2 = 0
@@ -465,8 +469,11 @@ def lsqr(A, b, damp=0.0, atol=1e-8, btol=1e-8, conlim=1e8,
         delta = sn2 * rho
         gambar = -cs2 * rho
         rhs = phi - delta * z
-        zbar = rhs / gambar
-        xnorm = sqrt(xxnorm + zbar**2)
+        if orig_xnorm:
+            zbar = rhs / gambar
+            xnorm = sqrt(xxnorm + zbar ** 2)
+        else:
+            xnorm = np.linalg.norm(x)
         gamma = sqrt(gambar**2 + theta**2)
         cs2 = gambar / gamma
         sn2 = theta / gamma
@@ -502,6 +509,7 @@ def lsqr(A, b, damp=0.0, atol=1e-8, btol=1e-8, conlim=1e8,
         test3 = 1 / (acond + eps)
         t1 = test1 / (1 + anorm * xnorm / bnorm)
         rtol = btol + atol * anorm * xnorm / bnorm
+        # proper_rtol_same_ab = rnorm / (bnorm + anorm * xnorm)
 
         # The following tests guard against extremely small values of
         # atol, btol  or  ctol.  (The user may have set any or all of

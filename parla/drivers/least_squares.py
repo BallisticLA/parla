@@ -349,6 +349,8 @@ class SPO(OverLstsqSolver):
         tri = self.mode in {'qr', 'chol'}
         res = self.iterative_solver(A, b, None, delta, tol, iter_lim, R, tri, z_ske)
         log.time_iterate = quick_time() - tic
+        if len(res) == 4:
+            log.return_code = res[3]
 
         if logging:
             ar0 = A.T @ b
