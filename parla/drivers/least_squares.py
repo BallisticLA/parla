@@ -300,7 +300,6 @@ class SPO(OverLstsqSolver):
             if logging_condnum_precond:
                 A_pre = la.solve_triangular(R, A.T, trans='T').T
                 log.condnum_precond = np.linalg.cond(A_pre)
-                #log.condnum_precond = np.linalg.cond(A @ la.inv(R))
             log.time_factor = quick_time() - tic
             tic = quick_time()
             b_ske = S @ b

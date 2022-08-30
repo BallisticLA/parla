@@ -96,7 +96,7 @@ def _sym_ortho(a, b):
 
 
 def lsqr(A, b, damp=0.0, atol=1e-8, btol=1e-8, conlim=1e8,
-         iter_lim=None, show=False, calc_var=False, x0=None, orig_xnorm=True):
+         iter_lim=None, show=False, calc_var=False, x0=None, orig_xnorm=False):
     """Find the least-squares solution to a large, sparse, linear system
     of equations.
 

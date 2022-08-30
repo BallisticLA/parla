@@ -1,4 +1,5 @@
 import unittest
+import warnings
 import numpy as np
 import scipy.linalg as la
 import parla.drivers.least_squares as rlsq
@@ -6,7 +7,7 @@ import parla.utils.sketching as usk
 import parla.comps.sketchers.oblivious as oblivious
 import parla.utils.stats as ustats
 import parla.tests.matmakers as matmakers
-from parla.comps.determiter.saddle import PcSS3
+from parla.comps.determiter.saddle import PcSS1, PcSS3
 
 
 def consistent_tall():
@@ -123,6 +124,8 @@ class AlgTestHelper:
         self.A = A
         self.b = b
         self.x_opt = x_opt
+        self.log = None
+        self.return_code = None
         self._result = None
         self.x_approx = None
         self.U = U
@@ -139,6 +142,7 @@ class AlgTestHelper:
         self._result = res
         self.x_approx = res[0]
         self.log = res[1]
+        self.return_code = self.log.return_code
 
     def test_x_angle(self, tol):
         """
@@ -210,6 +214,29 @@ class TestOverLstsqSolver(unittest.TestCase):
 
     CONV_RATE = -0.3
 
+    ERROR_ON_ITER_LIMIT = True
+
+    def check_return_code(self, ath: AlgTestHelper,
+                          ols: rlsq.OverLstsqSolver):
+        if hasattr(ols, 'iterative_solver'):
+            if not isinstance(ols.iterative_solver, PcSS1):
+                # All preconditioned iterative solvers other than PcSS1 (which
+                # implements basic PCG) have integer-valued return codes, and
+                # use code 7 as the return code if they hit their iteration limit.
+                # We use that convention just because it's the same as that
+                # used by LSQR.
+                #
+                # First, we check that the return code was set.
+                assert isinstance(ath.return_code, int)
+                if ath.return_code == 7:
+                    msg = 'Hit iteration limit!'
+                    if self.ERROR_ON_ITER_LIMIT:
+                        raise RuntimeError(msg)
+                    else:
+                        warnings.warn(msg)
+        else:
+            warnings.warn("Missing attribute 'iterative_solver'.")
+
     def run_inconsistent(self, ath: AlgTestHelper,
                          ols: rlsq.OverLstsqSolver,
                          alg_tol, iter_lim,
@@ -218,6 +245,7 @@ class TestOverLstsqSolver(unittest.TestCase):
         for seed in seeds:
             rng = np.random.default_rng(seed)
             ath.result = ols(ath.A, ath.b, 0.0, alg_tol, iter_lim, rng)
+            self.check_return_code(ath, ols)
             ath.test_residual_proj(test_tol)
             ath.test_x_angle(test_tol)
             ath.test_x_norm(test_tol)
@@ -230,6 +258,7 @@ class TestOverLstsqSolver(unittest.TestCase):
         for seed in seeds:
             rng = np.random.default_rng(seed)
             ath.result = ols(ath.A, ath.b, 0.0, alg_tol, iter_lim, rng)
+            self.check_return_code(ath, ols)
             ath.test_x_norm(test_tol)
             ath.test_x_angle(test_tol)
             ath.test_objective(test_tol)
@@ -267,6 +296,10 @@ class TestSPO(TestOverLstsqSolver):
             A, its sketching operator S is of shape (sampling_factor * n)-by-m.
         (3) the way they factor the sketch of A.
     """
+    
+    TOL_STRICT = 1e-12
+    TOL_MILD = 1e-8
+    TOL_LOOSE = 1e-8
 
     def test_srct_qr(self):
         sap = rlsq.SPO(oblivious.SkOpTC(), sampling_factor=2)
@@ -296,24 +329,30 @@ class TestSPO(TestOverLstsqSolver):
         pass
 
     def test_consistent_tall_qr(self):
+        self.ERROR_ON_ITER_LIMIT = False
         ath = consistent_tall()
         sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=1, mode='qr')
-        self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
+        self.run_consistent(ath, sap, 0.0, 1, self.TOL_STRICT, self.SEEDS)
+        self.ERROR_ON_ITER_LIMIT = True
 
     def test_consistent_square_qr(self):
+        self.ERROR_ON_ITER_LIMIT = False
         ath = consistent_square()
         sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=1, mode='qr')
-        self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
+        self.run_consistent(ath, sap, 0.0, 1, self.TOL_STRICT, self.SEEDS)
+        self.ERROR_ON_ITER_LIMIT = True
 
     def test_inconsistent_orth_qr(self):
         ath = inconsistent_orthog()
         sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3, mode='qr')
-        self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
+        iter_lim = ath.A.shape[1]
+        self.run_inconsistent(ath, sap, self.TOL_STRICT, iter_lim, self.TOL_LOOSE, self.SEEDS)
 
     def test_inconsistent_gen_qr(self):
         ath = inconsistent_gen()
         sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3)
-        self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
+        iter_lim = ath.A.shape[1]
+        self.run_inconsistent(ath, sap, self.TOL_STRICT, iter_lim, self.TOL_LOOSE, self.SEEDS)
 
     def test_srct_chol(self):
         sap = rlsq.SPO(oblivious.SkOpTC(), sampling_factor=2, mode='chol')
@@ -343,25 +382,31 @@ class TestSPO(TestOverLstsqSolver):
         pass
 
     def test_consistent_tall_chol(self):
+        self.ERROR_ON_ITER_LIMIT = False
         ath = consistent_tall()
         sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=1, mode='chol')
-        self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
+        self.run_consistent(ath, sap, 0.0, 1, self.TOL_STRICT, self.SEEDS)
+        self.ERROR_ON_ITER_LIMIT = True
 
     def test_consistent_square_chol(self):
+        self.ERROR_ON_ITER_LIMIT = False
         ath = consistent_square()
         sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=1, mode='chol')
-        self.run_consistent(ath, sap, 0.0, 1, 1e-10, self.SEEDS)
+        self.run_consistent(ath, sap, 0.0, 1, self.TOL_MILD, self.SEEDS)
         # ^ Slightly lower tolerance than consistent_tall_chol
+        self.ERROR_ON_ITER_LIMIT = True
 
     def test_inconsistent_orth_chol(self):
         ath = inconsistent_orthog()
         sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3, mode='chol')
-        self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
+        iter_lim = ath.A.shape[1]
+        self.run_inconsistent(ath, sap, self.TOL_STRICT, iter_lim, self.TOL_LOOSE, self.SEEDS)
 
     def test_inconsistent_gen_chol(self):
         ath = inconsistent_gen()
         sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3, mode='chol')
-        self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
+        iter_lim = ath.A.shape[1]
+        self.run_inconsistent(ath, sap, self.TOL_STRICT, iter_lim, self.TOL_LOOSE, self.SEEDS)
 
     def test_srct_svd(self):
         sap = rlsq.SPO(oblivious.SkOpTC(), sampling_factor=2, mode='svd')
@@ -391,34 +436,44 @@ class TestSPO(TestOverLstsqSolver):
         pass
 
     def test_consistent_tall_svd(self):
+        self.ERROR_ON_ITER_LIMIT = False
         ath = consistent_tall()
         sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=1, mode='svd')
-        self.run_consistent(ath, sap, 0.0, 1, 1e-12, self.SEEDS)
+        self.run_consistent(ath, sap, 0.0, 1, self.TOL_STRICT, self.SEEDS)
+        self.ERROR_ON_ITER_LIMIT = True
 
     def test_consistent_square_svd(self):
+        self.ERROR_ON_ITER_LIMIT = False
         ath = consistent_square()
         sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=1, mode='svd')
-        self.run_consistent(ath, sap, 0.0, 1, 1e-10, self.SEEDS)
+        self.run_consistent(ath, sap, 0.0, 1, self.TOL_MILD, self.SEEDS)
         # ^ Slightly lower tolerance than consistent_tall_chol
+        self.ERROR_ON_ITER_LIMIT = True
 
     def test_inconsistent_orth_svd(self):
         ath = inconsistent_orthog()
         sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3, mode='svd')
-        self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
+        self.run_inconsistent(ath, sap, self.TOL_STRICT, 100, self.TOL_LOOSE, self.SEEDS)
 
     def test_inconsistent_gen_svd(self):
         ath = inconsistent_gen()
         sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3, mode='svd')
-        self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
+        self.run_inconsistent(ath, sap, self.TOL_STRICT, 100, self.TOL_LOOSE, self.SEEDS)
 
     def test_consistent_lowrank_svd(self):
+        self.ERROR_ON_ITER_LIMIT = False
         ath = consistent_lowrank()
         sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3, mode='svd')
-        self.run_consistent(ath, sap, 1-12, 1, 1e-6, self.SEEDS)
+        self.run_consistent(ath, sap, self.TOL_STRICT, 1, self.TOL_LOOSE, self.SEEDS)
+        self.ERROR_ON_ITER_LIMIT = True
 
 
 class TestSPO_NS(TestOverLstsqSolver):
     # Sketch-and-precondition, using no-refresh Newton sketch for iterative method
+
+    TOL_STRICT = 1e-12
+    TOL_MILD = 1e-8
+    TOL_LOOSE = 1e-8
 
     def test_gaussian_svd(self):
         sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3, mode='svd')
@@ -431,35 +486,44 @@ class TestSPO_NS(TestOverLstsqSolver):
         pass
 
     def test_consistent_tall_svd(self):
+        self.ERROR_ON_ITER_LIMIT = False
         ath = consistent_tall()
         sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=1, mode='svd')
         sap.iterative_solver = PcSS3()
-        self.run_consistent(ath, sap, 0.0, 1, 1e-10, self.SEEDS)
+        self.run_consistent(ath, sap, 0.0, 1, self.TOL_MILD, self.SEEDS)
+        self.ERROR_ON_ITER_LIMIT = True
 
     def test_consistent_square_svd(self):
+        self.ERROR_ON_ITER_LIMIT = False
         ath = consistent_square()
         sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=1, mode='svd')
         sap.iterative_solver = PcSS3()
-        self.run_consistent(ath, sap, 0.0, 1, 1e-10, self.SEEDS)
+        self.run_consistent(ath, sap, 0.0, 1, self.TOL_MILD, self.SEEDS)
+        self.ERROR_ON_ITER_LIMIT = True
 
     def test_inconsistent_orth_svd(self):
         ath = inconsistent_orthog()
         sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3, mode='svd')
         sap.iterative_solver = PcSS3()
-        self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
+        iter_lim = ath.A.shape[1]
+        self.run_inconsistent(ath, sap, self.TOL_STRICT, iter_lim, self.TOL_LOOSE, self.SEEDS)
 
     def test_inconsistent_gen_svd(self):
         ath = inconsistent_gen()
         self.CONV_RATE = -0.1
         sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3, mode='svd')
         sap.iterative_solver = PcSS3()
-        self.run_inconsistent(ath, sap, 1e-12, 100, 1e-6, self.SEEDS)
+        iter_lim = 2*ath.A.shape[1]
+        self.run_inconsistent(ath, sap, self.TOL_STRICT, iter_lim, self.TOL_LOOSE, self.SEEDS)
+        # Convergence is a little slow in this case;
 
     def test_consistent_lowrank_svd(self):
+        self.ERROR_ON_ITER_LIMIT = False
         ath = consistent_lowrank()
         sap = rlsq.SPO(oblivious.SkOpGA(), sampling_factor=3, mode='svd')
         sap.iterative_solver = PcSS3()
-        self.run_consistent(ath, sap, 1e-12, 1, 1e-6, self.SEEDS)
+        self.run_consistent(ath, sap, self.TOL_STRICT, 1, self.TOL_LOOSE, self.SEEDS)
+        self.ERROR_ON_ITER_LIMIT = True
 
 
 class TestSAS(unittest.TestCase):
