@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name='parla',
-    version='0.1.4',
+    version='0.1.5',
     author='',
     url='https://github.com/BallisticLA/parla',
     author_email='rjmurray@berkeley.edu',
