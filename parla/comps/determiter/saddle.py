@@ -234,6 +234,9 @@ class PcSS3(PrecondSaddleSolver):
                   f"\ntolerance: {self.MIN_TOL}."
             warnings.warn(msg)
             tol = self.MIN_TOL
+        elif tol >= 1.0:
+            raise ValueError(f'\ntol must be strictly less than one, but was {tol}.')
+
         max_iter = 5*n
         if iter_lim > max_iter:
             msg = f"\nThe provided iteration limit {iter_lim} is too large;" \
@@ -270,7 +273,9 @@ class PcSS3(PrecondSaddleSolver):
         #
         #    This is equivalent to how we call LSQR, except that LSQR maintains
         #    a sequence of non-decreasing values for "scale" that converge to
-        #    ||A M||_F. We terminate once min(metric1, metric2) falls below "tol".
+        #    ||A M||_F. If self.allow_consistent_term is True, then we terminate
+        #    once min(metric1, metric2) falls below "tol"; otherwise, we terminate
+        #    once metric2 falls below "tol".
 
         # workspace and error with x=0
         #       errors = absolute preconditioned normal equation error.
@@ -324,17 +329,13 @@ class PcSS3(PrecondSaddleSolver):
         err = la.norm(dz)
         errors[0] = err
         nrm_y = la.norm(y)
-        metric1 = nrm_y / (nrm_b + sqrt_n * la.norm(z))
+        metric1 = nrm_y / (nrm_b + sqrt_n * la.norm(z)) if self.allow_consistent_term else 1.0
         metric2 = err / (sqrt_n * nrm_y)
-        if self.allow_consistent_term:
-            error_func = lambda _metric1, _metric2: min(_metric1, _metric2)
-        else:
-            error_func = lambda _metric1, _metric2: _metric2
 
         # main loop; start by computing dx, end by computing error
         it = 1
         iter_lim += 1
-        while it < iter_lim and error_func(metric1, metric2) > tol:
+        while it < iter_lim and min(metric1, metric2) > tol:
             """
             Invariants:
                 rhs = A'b - (A'A + delta*I) x
@@ -371,11 +372,11 @@ class PcSS3(PrecondSaddleSolver):
             errors[it] = err
             it += 1
             nrm_y = la.norm(y)
-            metric1 = nrm_y / (nrm_b + sqrt_n * la.norm(z))
+            metric1 = nrm_y / (nrm_b + sqrt_n * la.norm(z)) if self.allow_consistent_term else 1.0
             metric2 = err / (sqrt_n * nrm_y)
         errors = errors[errors > -1]
 
-        if self.allow_consistent_term and metric1 <= tol:
+        if metric1 <= tol:
             code = 1
         elif metric2 <= tol:
             code = 2
