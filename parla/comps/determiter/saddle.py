@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import scipy.linalg as la
 from scipy.sparse import linalg as sparla
@@ -163,8 +165,9 @@ class PcSS2(PrecondSaddleSolver):
         2-norm of the residual from the preconditioned normal equations
     """
 
-    def __init__(self, orig_xnorm=True):
+    def __init__(self, orig_xnorm=True, allow_consistent_term=False):
         self.orig_xnorm = orig_xnorm
+        self.allow_consistent_term = allow_consistent_term
 
     def __call__(self, A, b, c, delta, tol, iter_lim, R, upper_tri, z0):
         m, n = A.shape
@@ -177,7 +180,7 @@ class PcSS2(PrecondSaddleSolver):
             if delta > 0:
                 b = np.concatenate((b, np.zeros(n)))
             result = lsqr(A_pc, b, atol=tol, btol=tol, iter_lim=iter_lim, x0=z0,
-                          orig_xnorm=self.orig_xnorm)
+                          orig_xnorm=self.orig_xnorm, allow_consistent_term=self.allow_consistent_term)
             x = M_fwd(result[0])
             y = b[:m] - A @ x
             result = (x, y, result[7], result[1])
@@ -206,6 +209,11 @@ class PcSS3(PrecondSaddleSolver):
 
     ERROR_METRIC_INFO = PcSS2.ERROR_METRIC_INFO
 
+    MIN_TOL = 10*np.finfo(float).eps
+
+    def __init__(self, allow_consistent_term=False):
+        self.allow_consistent_term = allow_consistent_term
+
     def __call__(self, A, b, c, delta, tol, iter_lim, R, upper_tri, z0):
 
         m, n = A.shape
@@ -219,6 +227,20 @@ class PcSS3(PrecondSaddleSolver):
             raise NotImplementedError()
         else:
             M = R
+
+        if tol < self.MIN_TOL:
+            msg = f"\nThe provided tolerance of {tol} is too small;" \
+                  f"\nwe're changing it to the smallest-admissible" \
+                  f"\ntolerance: {self.MIN_TOL}."
+            warnings.warn(msg)
+            tol = self.MIN_TOL
+        max_iter = 5*n
+        if iter_lim > max_iter:
+            msg = f"\nThe provided iteration limit {iter_lim} is too large;" \
+                  f"\nwe're changing it to the largest allowable iteration" \
+                  f"\nlimit, which is 5*n={max_iter}."
+            warnings.warn(msg)
+            iter_lim = max_iter
 
         # (A'A + \delta I) x = A'b - c
         #  A_pc = [A; \sqrt{\delta}] M,
@@ -240,32 +262,29 @@ class PcSS3(PrecondSaddleSolver):
         #               Equivalently,  rhs -= (A'A dx - delta * dx)
         #
         # Termination criteria. We mimick SciPy LSQR w/ preconditioned A.
-        #         metric1 = ||y || / (||b|| + scale*||x||)
-        #             LSQR tests that ||y|| / ||b|| <= (TOL_B + TOL_A*scale*||x||/||b||)
+        #         metric1 = ||y || / (||b|| + scale*||z||)
+        #             LSQR tests that ||y|| / ||b|| <= (TOL_B + TOL_A*scale*||z||/||b||)
         #             we set TOL_A = TOL_B.
         #         metric2 = ||M'A' y|| / (scale * ||y||)
-        #     where scale = sqrt(n) and y = b - Ax.
+        #     where scale = sqrt(n), y = b - Ax, and x = M z.
         #
         #    This is equivalent to how we call LSQR, except that LSQR maintains
         #    a sequence of non-decreasing values for "scale" that converge to
         #    ||A M||_F. We terminate once min(metric1, metric2) falls below "tol".
 
-        # errors = absolute preconditioned normal equation error.
-
         # workspace and error with x=0
-        iter_lim = min(iter_lim, 5*n)
+        #       errors = absolute preconditioned normal equation error.
         errors = -np.ones(iter_lim + 2)
         rank = M.shape[1]
-        work_rhs1 = np.zeros(rank)
-        work_rhs2 = np.zeros(n)
-        work_ax1 = np.zeros(m)
-        work_ax2 = np.zeros(m)
+        z = np.zeros(rank)
+        dz = np.zeros(rank)
         x = np.zeros(n)
         dx = np.zeros(n)
         y = b.copy()
         rhs = A.T @ b
-        np.dot(M.T, rhs, out=work_rhs1)  # work_rhs1 = M'rhs, where rhs = normal equation error.
-        err = la.norm(work_rhs1)
+        drhs = np.zeros(n)
+        work_ax1 = np.zeros(m)
+        work_ax2 = np.zeros(m)
         nrm_b = la.norm(b)
         sqrt_n = n**0.5
 
@@ -287,58 +306,76 @@ class PcSS3(PrecondSaddleSolver):
                 return alpha_
             return np.NaN
 
-        # First step: start by computing dx, end by computing error
+        # Initialize
         if z0 is not None and la.norm(z0) > 0:
-            np.dot(M, z0, out=dx)
+            dz = z0[:]  # dz0
+            np.dot(M, dz, out=dx)  # dx0
             alpha = step_size(dx, work_ax1, work_ax2)
-            dx *= alpha
-            x += dx
-            np.dot(A, dx, out=work_ax1)
+            dx *= alpha  # dx
+            x[:] = dx  # x = dx
+            np.dot(A, dx, out=work_ax1)  # -dy
             y -= work_ax1
-            np.dot(A.T, work_ax1, out=work_rhs2)
-            rhs -= work_rhs2
-            np.dot(M.T, rhs, out=work_rhs1)
-            err = la.norm(work_rhs1)
-            errors[0] = err
-            nrm_y = la.norm(y)
-            metric1 = nrm_y / (nrm_b + sqrt_n * la.norm(x))
-            metric2 = err / (sqrt_n * nrm_y)
+            z[:] = alpha * dz  # z = dz = alpha * dz0
+            np.dot(A.T, work_ax1, out=drhs)
+            rhs -= drhs
+
+        # Check stopping criteria; re-use dz later on.
+        np.dot(M.T, rhs, out=dz)
+        err = la.norm(dz)
+        errors[0] = err
+        nrm_y = la.norm(y)
+        metric1 = nrm_y / (nrm_b + sqrt_n * la.norm(z))
+        metric2 = err / (sqrt_n * nrm_y)
+        if self.allow_consistent_term:
+            error_func = lambda _metric1, _metric2: min(_metric1, _metric2)
         else:
-            nrm_y = nrm_b
-            metric1 = 1.0
-            metric2 = err / (sqrt_n * nrm_y)
+            error_func = lambda _metric1, _metric2: _metric2
 
         # main loop; start by computing dx, end by computing error
         it = 1
         iter_lim += 1
-        while it < iter_lim and min(metric1, metric2) > tol:
-            np.dot(M, work_rhs1, out=dx)  # dx = M M' rhs
+        while it < iter_lim and error_func(metric1, metric2) > tol:
+            """
+            Invariants:
+                rhs = A'b - (A'A + delta*I) x
+                dz0 = M' rhs
+                dx0 = M dz0 = MM' rhs
+                alpha = step_size()
+                [dz, dx] = alpha*[dz0, dx0]
+                dy = -A dx
+                z += dz
+                x += dx
+                y += dy  
+            """
+            np.dot(M, dz, out=dx)  # dx = M M' rhs
             alpha = step_size(dx, work_ax1, work_ax2)
             if np.isnan(alpha) or alpha == 0:
                 errors[it] = err
                 break
             dx *= alpha
+            dz *= alpha
             x += dx
+            z += dz
             np.dot(A, dx, out=work_ax1)
             y -= work_ax1
-            np.dot(A.T, work_ax1, out=work_rhs2)
+            np.dot(A.T, work_ax1, out=drhs)
             if it % 50 == 0:
                 np.dot(A, x, out=work_ax1)
                 work_ax1 -= b
                 work_ax1 *= -1
                 np.dot(A.T, work_ax1, out=rhs)
             else:
-                rhs -= work_rhs2  # rhs -= alpha * (A'A dx + \delta dx)
-            np.dot(M.T, rhs, out=work_rhs1)
-            err = la.norm(work_rhs1)
+                rhs -= drhs  # rhs -= alpha * (A'A dx + \delta dx)
+            np.dot(M.T, rhs, out=dz)
+            err = la.norm(dz)
             errors[it] = err
             it += 1
             nrm_y = la.norm(y)
-            metric1 = nrm_y / (nrm_b + sqrt_n * la.norm(x))
+            metric1 = nrm_y / (nrm_b + sqrt_n * la.norm(z))
             metric2 = err / (sqrt_n * nrm_y)
         errors = errors[errors > -1]
 
-        if metric1 <= tol:
+        if self.allow_consistent_term and metric1 <= tol:
             code = 1
         elif metric2 <= tol:
             code = 2
