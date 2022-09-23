@@ -92,6 +92,29 @@ class PcSS1(PrecondSaddleSolver):
     """
 
     def __call__(self, A, b, c, delta, tol, iter_lim, R, upper_tri, z0):
+        """
+        Let
+            pc_dim = number of columns in R.
+            n = number of columns in A.
+
+        If pc_dim >= n, then ...
+            assume (A'A + delta*I) (RR') is well-conditioned.
+
+        If pc_dim < n, then ...
+            Assume R is an "SVD-based preconditioner", in the sense that
+            R = [V1/s1, V2/s2, ..., V_{pc_dim}/ s_{pc_dim}]
+            where Vi,si are approximations to the dominant right
+            singular vectors and singular values of A.
+
+            Compute the singular values of the augmented matrix
+            [A; sqrt(delta)] by singvals[i] = sqrt(s[i]**2 + delta).
+            Normalize by the smallest singular value:
+                t = singvals / singvals[-1].
+            Set R = [V1/t1, V2/t2, ..., V_{pc_dim}/t_{pc_dim}].
+
+            This defines a preconditioner M = RR' + (I - VV'), for which
+            (A'A + delta*I)M should be well-conditioned.
+        """
         m, n = A.shape
         if b is None:
             b = np.zeros(m)
