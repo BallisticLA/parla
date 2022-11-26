@@ -1,3 +1,4 @@
+.DS_Store
 .idea/*
 *.ipynb_checkpoints/*
 ignore_scripts/*
