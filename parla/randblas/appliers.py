@@ -51,7 +51,6 @@ def lskge3(layout: Layout,
             S_struct.buff = S_ptr
             S_struct.populated = True
     elif not S_struct.populated:
-        assert S_ptr.ndim == 1
         pop_buff = populated_dense_buff(S_struct, rng)
         S_ptr[:] = pop_buff
         S_struct.populated = True

@@ -24,31 +24,7 @@ class SketchingBuffer:
                  persistent: bool = False
                  ):
         """
-        Qualitative conclusions:
-            (*) For now, take an "all or nothing" approach to memory management.
-                I.e., user gives us a full buffer, or user gives us nothing, and
-                we maybe allocate a full buffer internally (depend on implementation
-                and whether persistent=True).
-            (*) For things like Haar sketching, workspace becomes more complicated
-                because there's a block size to tune.
-                    (*) If ORMQR is the only LAPACK function that the RandBLAS might
-                        need then we can copy-paste an source code from an appropriate
-                        implementation. But there will still be the matter of block size.
-        """
-        self.dist = dist
-        self.ctr_offset = ctr_offset
-        self.key = key
-        self.n_rows = n_rows
-        self.n_cols = n_cols
-        self.populated = populated
-        self.buff = buff
-        self.persistent = persistent
-        if self.populated:
-            assert self.buff is not None
-        if self.buff is not None:
-            assert self.persistent
-        """
-        Roughly speaking, when S.buff is interpeted in column-major ...
+        Roughly speaking, when S.buff is interpreted in column-major ...
             buff[i + n_rows * j] = cbrng(ctr_offset + i + j*n_rows),
         otherwise,
             buff[i * n_cols + j] = cbrng(ctr_offset + i*n_cols + j).
@@ -56,6 +32,20 @@ class SketchingBuffer:
         The qualifier "rough" is needed in both cases because one call to
         the cbrng generates multiple numbers.
         """
+        self.dist = dist
+        self.ctr_offset = ctr_offset
+        self.key = key
+        self.n_rows = n_rows
+        self.n_cols = n_cols
+        self.buff = buff
+        self.populated = populated
+        self.persistent = persistent
+        if buff is not None:
+            assert persistent
+            # We don't require that buff is populated.
+        if populated:
+            assert buff is not None
+        pass
 
 
 def populated_dense_buff(S: SketchingBuffer, rng):
@@ -77,20 +67,22 @@ class SASO:
                  vec_nnz: int,
                  key: int,
                  ctr_offset: int,
-                 mat: Optional[spar.spmatrix] = None):
+                 mat: Optional[spar.spmatrix] = None,
+                 populated: bool = False,
+                 persistent: bool = False):
         self.n_rows = n_rows
         self.n_cols = n_cols
         self.vec_nnz = vec_nnz
         self.key = key
         self.ctr_offset = ctr_offset
         self.mat = mat
+        self.persistent = persistent
+        self.populated = populated
         if mat is not None:
+            assert persistent
+            assert populated
             assert mat.shape == (n_rows, n_cols)
-        self.persistent = False
-
-    @property
-    def populated(self):
-        return self.mat is not None
+        pass
 
 
 def populated_saso(S: SASO, rng) -> spar.spmatrix:
