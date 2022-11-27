@@ -31,7 +31,7 @@ def lskge3(layout: Layout,
 
     Notes:
         layout specifies the layout for (A, B, S) as represented
-        by vectors A_ptr, B_ptr, and S.buff.
+        by vectors A_ptr, B_ptr, and S.op_data.
 
         If transA == NoTrans and layout == ColMajor, then
         there are at least "lda * n" elements following A_ptr.
@@ -125,6 +125,8 @@ def lskges(layout: Layout,
         {(rows_S, cols_S)}.
         """
         raise NotImplementedError(msg)
+    else:
+        S = S_mat
 
     # Check that the dimensions for (A, B) are compatible with the
     # provided stride parameters (lda, ldb) we'll use for (A_ptr, B_ptr).
@@ -142,13 +144,13 @@ def lskges(layout: Layout,
 
     # Perform the multiplication
     if transS == Op.NoTrans and transA == Op.NoTrans:
-        C = S_mat @ A
+        C = S @ A
     elif transS == Op.NoTrans and transA == Op.Trans:
-        C = S_mat @ A.T
+        C = S @ A.T
     elif transS == Op.Trans and transA == Op.Trans:
-        C = S_mat.T @ A.T
+        C = S.T @ A.T
     else:
-        C = S_mat.T @ A
+        C = S.T @ A
     C *= alpha
     B *= beta
     B += C
