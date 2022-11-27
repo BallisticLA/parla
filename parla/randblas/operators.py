@@ -22,6 +22,8 @@ Any instance methods defined for the classes are only there to clarify semantics
 
 
 class SketchingBuffer:
+    """The (n_rows, n_cols) here are somewhat artificial, but they're needed for consistency with SASOs
+    if we are to avoid "lds" parameters in applier functions."""
 
     def __init__(self,
                  dist: DenseDist,
@@ -78,6 +80,24 @@ def populated_dense_buff(S: SketchingBuffer, rng):
     return buff
 
 
+def prep_dense_buff_sketching(S_struct):
+    assert S_struct.dist != DenseDist.Haar
+    cbrng = np.random.Philox(key=S_struct.key, counter=S_struct.ctr_offset)
+    rng = np.random.Generator(cbrng)
+    S_ptr = S_struct.buff
+    if S_ptr is None:
+        S_ptr = populated_dense_buff(S_struct, rng)
+        if S_struct.persistent:
+            S_struct.buff = S_ptr
+            S_struct.populated = True
+    elif not S_struct.populated:
+        pop_buff = populated_dense_buff(S_struct, rng)
+        S_ptr[:] = pop_buff
+        S_struct.populated = True
+    S_struct.state_check()
+    return S_ptr
+
+
 class SASO:
 
     def __init__(self,
@@ -108,9 +128,8 @@ class SASO:
             assert self.persistent
             # Note: populating a pre-allocated "mat" will be
             # optional in C++, but we haven't implemented it here.
-            if not self.populated:
-                raise NotImplementedError()
         if self.populated:
+            assert self.mat is not None
             assert self.persistent
             assert self.mat.shape == (self.n_rows, self.n_cols)
             # ^ That last check is unique to this Python implementation.
@@ -120,3 +139,18 @@ class SASO:
 def populated_saso(S: SASO, rng) -> spar.spmatrix:
     S_op = sk_utils.sjlt_operator(S.n_rows, S.n_cols, rng, S.vec_nnz)
     return S_op
+
+
+def prep_saso_sketching(S_struct):
+    cbrng = np.random.Philox(key=S_struct.key, counter=S_struct.ctr_offset)
+    rng = np.random.Generator(cbrng)
+    S_mat = S_struct.mat
+    if S_mat is None:
+        S_mat = populated_saso(S_struct, rng)
+        if S_struct.persistent:
+            S_struct.mat = S_mat
+            S_struct.populated = True
+    elif not S_struct.populated:
+        raise NotImplementedError()
+    S_struct.state_check()
+    return S_mat

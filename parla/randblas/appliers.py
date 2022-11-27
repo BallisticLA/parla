@@ -1,5 +1,6 @@
 from parla.randblas.enums import DenseDist, Side, Op, Layout, Uplo, Diag
-from parla.randblas.operators import SketchingBuffer, SASO, populated_saso, populated_dense_buff
+from parla.randblas.operators import SASO, prep_saso_sketching
+from parla.randblas.operators import SketchingBuffer, prep_dense_buff_sketching
 from parla.randblas.python_specific_helpers import write_back, to_2d_array
 import numpy as np
 
@@ -40,21 +41,7 @@ def lskge3(layout: Layout,
     """
     assert A_ptr.ndim == 1
     assert B_ptr.ndim == 1
-    assert S_struct.dist != DenseDist.Haar
-
-    cbrng = np.random.Philox(key=S_struct.key, counter=S_struct.ctr_offset)
-    rng = np.random.Generator(cbrng)
-    S_ptr = S_struct.buff
-    if S_ptr is None:
-        S_ptr = populated_dense_buff(S_struct, rng)
-        if S_struct.persistent:
-            S_struct.buff = S_ptr
-            S_struct.populated = True
-    elif not S_struct.populated:
-        pop_buff = populated_dense_buff(S_struct, rng)
-        S_ptr[:] = pop_buff
-        S_struct.populated = True
-    S_struct.state_check()
+    S_ptr = prep_dense_buff_sketching(S_struct)
 
     # The dimensions for (A, S), rather than (op(A), op(S)).
     rows_A, cols_A = (m, n) if transA == Op.NoTrans else (n, m)
@@ -125,17 +112,7 @@ def lskges(layout: Layout,
     """
     assert A_ptr.ndim == 1
     assert B_ptr.ndim == 1
-    cbrng = np.random.Philox(key=S_struct.key, counter=S_struct.ctr_offset)
-    rng = np.random.Generator(cbrng)
-    S_mat = S_struct.mat
-    if S_mat is None:
-        S_mat = populated_saso(S_struct, rng)
-        if S_struct.persistent:
-            S_struct.mat = S_mat
-            S_struct.populated = True
-    elif not S_struct.populated:
-        raise NotImplementedError()
-    S_struct.state_check()
+    S_mat = prep_saso_sketching(S_struct)
 
     # The dimensions for (A, S), rather than (op(A), op(S)).
     rows_A, cols_A = (m, n) if transA == Op.NoTrans else (n, m)
