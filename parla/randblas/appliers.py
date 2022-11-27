@@ -1,5 +1,6 @@
 from parla.randblas.enums import DenseDist, Side, Op, Layout, Uplo, Diag
 from parla.randblas.operators import SketchingBuffer, SASO, populated_saso, populated_dense_buff
+from parla.randblas.python_specific_helpers import write_back, to_2d_array
 import numpy as np
 
 
@@ -57,16 +58,9 @@ def lskge3(layout: Layout,
         S_struct.populated = True
         S_struct.persistent = True
 
-    # The dimensions for A, rather than op(A).
-    if transA == Op.NoTrans:
-        rows_A, cols_A = m, n
-    else:
-        rows_A, cols_A = n, m
-    # Dimensions for S, rather than op(S).
-    if transS == Op.NoTrans:
-        rows_S, cols_S = d, m
-    else:
-        rows_S, cols_S = m, d
+    # The dimensions for (A, S), rather than (op(A), op(S)).
+    rows_A, cols_A = (m, n) if transA == Op.NoTrans else (n, m)
+    rows_S, cols_S = (d, m) if transS == Op.NoTrans else (m, d)
 
     # Check that the dimensions for (A, B) are compatible with the
     # provided stride parameters (lda, ldb) we'll use for (A_ptr, B_ptr).
@@ -82,21 +76,10 @@ def lskge3(layout: Layout,
         assert n >= ldb
 
     # Convert to appropriate NumPy arrays, since we can't easily access BLAS directly.
-    # This won't be needed in RandBLAS.
-    if layout == Layout.ColMajor:
-        S = buff[:lds * cols_S].reshape((lds, cols_S), order='F')
-        S = S[:rows_S, :]
-        A = A_ptr[:lda * cols_A].reshape((lda, cols_A), order='F')
-        A = A[:rows_A, :]
-        B = B_ptr[:ldb*n].reshape((ldb, n), order='F')
-        B = B[:d, :]
-    else:
-        S = buff[:lds * rows_S].reshape((rows_S, lds), order='C')
-        S = S[:, :cols_S]
-        A = A_ptr[:lda * rows_A].reshape((rows_A, lda), order='C')
-        A = A[:, :cols_A]
-        B = B_ptr[:ldb * d].reshape((d, ldb), order='C')
-        B = B[:, :n]
+    #   This won't be needed in RandBLAS.
+    S = to_2d_array(buff, rows_S, cols_S, lds, layout)
+    A = to_2d_array(A_ptr, rows_A, cols_A, lda, layout)
+    B = to_2d_array(B_ptr, d, n, ldb, layout)
 
     # Perform the multiplication
     if transS == Op.NoTrans and transA == Op.NoTrans:
@@ -110,21 +93,7 @@ def lskge3(layout: Layout,
     C *= alpha
     B *= beta
     B += C
-
-    # Write back to memory in B_ptr.
-    #   This is mind-bogglingly slow.
-    #   It's needed because
-    #   This won't be needed in RandBLAS.
-    if layout == Layout.ColMajor:
-        for col in range(n):
-            start = ldb * col
-            stop = start + d
-            B_ptr[start:stop] = B[:, col]
-    else:
-        for row in range(d):
-            start = ldb * row
-            stop = start + n
-            B_ptr[start:stop] = B[row, :]
+    write_back(B, B_ptr, n, d, ldb, layout)
     pass
 
 
@@ -167,16 +136,9 @@ def lskges(layout: Layout,
         if S_struct.persistent:
             S_struct.mat = S_mat
 
-    # The dimensions for A, rather than op(A).
-    if transA == Op.NoTrans:
-        rows_A, cols_A = m, n
-    else:
-        rows_A, cols_A = n, m
-    # Dimensions for S, rather than op(S).
-    if transS == Op.NoTrans:
-        rows_S, cols_S = d, m
-    else:
-        rows_S, cols_S = m, d
+    # The dimensions for (A, S), rather than (op(A), op(S)).
+    rows_A, cols_A = (m, n) if transA == Op.NoTrans else (n, m)
+    rows_S, cols_S = (d, m) if transS == Op.NoTrans else (m, d)
     if S_mat.shape != (rows_S, cols_S):
         msg = f"""
         Can't apply a portion of a SASO. The SASOs provided
@@ -196,45 +158,23 @@ def lskges(layout: Layout,
         assert n >= ldb
 
     # Convert to appropriate NumPy arrays, since we can't easily access BLAS directly.
-    # This won't be needed in RandBLAS.
-    if layout == Layout.ColMajor:
-        A = A_ptr[:lda * cols_A].reshape((lda, cols_A), order='F')
-        A = A[:rows_A, :]
-        B = B_ptr[:ldb*n].reshape((ldb, n), order='F')
-        B = B[:d, :]
-    else:
-        A = A_ptr[:lda * rows_A].reshape((rows_A, lda), order='C')
-        A = A[:, :cols_A]
-        B = B_ptr[:ldb * d].reshape((d, ldb), order='C')
-        B = B[:, :n]
+    #   This won't be needed in RandBLAS.
+    A = to_2d_array(A_ptr, rows_A, cols_A, lda, layout)
+    B = to_2d_array(B_ptr, d, n, ldb, layout)
 
     # Perform the multiplication
     if transS == Op.NoTrans and transA == Op.NoTrans:
-        C = S @ A
+        C = S_mat @ A
     elif transS == Op.NoTrans and transA == Op.Trans:
-        C = S @ A.T
+        C = S_mat @ A.T
     elif transS == Op.Trans and transA == Op.Trans:
-        C = S.T @ A.T
+        C = S_mat.T @ A.T
     else:
-        C = S.T @ A
+        C = S_mat.T @ A
     C *= alpha
     B *= beta
     B += C
-
-    # Write back to memory in B_ptr.
-    #   This is mind-bogglingly slow.
-    #   It's needed because
-    #   This won't be needed in RandBLAS.
-    if layout == Layout.ColMajor:
-        for col in range(n):
-            start = ldb * col
-            stop = start + d
-            B_ptr[start:stop] = B[:, col]
-    else:
-        for row in range(d):
-            start = ldb * row
-            stop = start + n
-            B_ptr[start:stop] = B[row, :]
+    write_back(B, B_ptr, n, d, ldb, layout)
     pass
 
 
