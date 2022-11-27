@@ -11,6 +11,16 @@ import parla.utils.sketching as sk_utils
 #   smsk3: [s]a[m]ple a [sk]etching operator that takes BLAS [3] level work.
 
 
+"""
+The classes below will only be structs in the C++ implementation.
+Any instance methods defined for the classes are only there to clarify semantics.
+
+    There is some redundancy across the classes. This could be resolved by using
+    inheritance, but I (Riley) think that would stray too far from the spirit of
+    a struct.
+"""
+
+
 class SketchingBuffer:
 
     def __init__(self,
@@ -40,12 +50,21 @@ class SketchingBuffer:
         self.buff = buff
         self.populated = populated
         self.persistent = persistent
-        if buff is not None:
-            assert persistent
-            # We don't require that buff is populated.
-        if populated:
-            assert buff is not None
+        self.state_check()
         pass
+
+    def state_check(self):
+        # Start with checks that apply regardless of whether
+        # self.populated == True.
+        if self.buff is None:
+            assert not self.populated
+            # Note: persistence is optional in this case.
+        else:
+            assert self.persistent
+            # Note: populating buff is optional in this case.
+        if self.populated:
+            assert self.buff is not None
+            assert self.persistent
 
 
 def populated_dense_buff(S: SketchingBuffer, rng):
@@ -78,10 +97,23 @@ class SASO:
         self.mat = mat
         self.persistent = persistent
         self.populated = populated
-        if mat is not None:
-            assert persistent
-            assert populated
-            assert mat.shape == (n_rows, n_cols)
+        self.state_check()
+        pass
+
+    def state_check(self):
+        if self.mat is None:
+            assert not self.populated
+            # Note: persistence is optional in this case.
+        else:
+            assert self.persistent
+            # Note: populating a pre-allocated "mat" will be
+            # optional in C++, but we haven't implemented it here.
+            if not self.populated:
+                raise NotImplementedError()
+        if self.populated:
+            assert self.persistent
+            assert self.mat.shape == (self.n_rows, self.n_cols)
+            # ^ That last check is unique to this Python implementation.
         pass
 
 
