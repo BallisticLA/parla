@@ -19,7 +19,9 @@ class SketchingBuffer:
                  key: int,
                  n_rows: int,
                  n_cols: int,
-                 buff: Optional[np.ndarray] = None
+                 buff: Optional[np.ndarray] = None,
+                 populated: bool = False,
+                 persistent: bool = False
                  ):
         """
         Qualitative conclusions:
@@ -38,8 +40,13 @@ class SketchingBuffer:
         self.key = key
         self.n_rows = n_rows
         self.n_cols = n_cols
-        self.populated = False
-        self.persistent = False
+        self.populated = populated
+        self.buff = buff
+        self.persistent = persistent
+        if self.populated:
+            assert self.buff is not None
+        if self.buff is not None:
+            assert self.persistent
         """
         Roughly speaking, when S.buff is interpeted in column-major ...
             buff[i + n_rows * j] = cbrng(ctr_offset + i + j*n_rows),
@@ -49,7 +56,6 @@ class SketchingBuffer:
         The qualifier "rough" is needed in both cases because one call to
         the cbrng generates multiple numbers.
         """
-        self.buff = buff
 
 
 def populated_dense_buff(S: SketchingBuffer, rng):

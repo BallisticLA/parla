@@ -44,19 +44,17 @@ def lskge3(layout: Layout,
 
     cbrng = np.random.Philox(key=S_struct.key, counter=S_struct.ctr_offset)
     rng = np.random.Generator(cbrng)
-    if S_struct.buff is None:
-        buff = populated_dense_buff(S_struct, rng)
+    S_ptr = S_struct.buff
+    if S_ptr is None:
+        S_ptr = populated_dense_buff(S_struct, rng)
         if S_struct.persistent:
-            S_struct.buff = buff
+            S_struct.buff = S_ptr
             S_struct.populated = True
-    else:
-        buff = S_struct.buff
-        assert buff.ndim == 1
-        if not S_struct.populated:
-            pop_buff = populated_dense_buff(S_struct, rng)
-            buff[:] = pop_buff
+    elif not S_struct.populated:
+        assert S_ptr.ndim == 1
+        pop_buff = populated_dense_buff(S_struct, rng)
+        S_ptr[:] = pop_buff
         S_struct.populated = True
-        S_struct.persistent = True
 
     # The dimensions for (A, S), rather than (op(A), op(S)).
     rows_A, cols_A = (m, n) if transA == Op.NoTrans else (n, m)
@@ -77,7 +75,7 @@ def lskge3(layout: Layout,
 
     # Convert to appropriate NumPy arrays, since we can't easily access BLAS directly.
     #   This won't be needed in RandBLAS.
-    S = to_2d_array(buff, rows_S, cols_S, lds, layout)
+    S = to_2d_array(S_ptr, rows_S, cols_S, lds, layout)
     A = to_2d_array(A_ptr, rows_A, cols_A, lda, layout)
     B = to_2d_array(B_ptr, d, n, ldb, layout)
 
@@ -122,8 +120,8 @@ def lskges(layout: Layout,
         If transA == NoTrans and layout == ColMajor, then
         there are at least "lda * n" elements following A_ptr.
 
-        The unordered pair {d,m} of giving the dimensions of op(S)
-        must be equal to the unordered pair {S_struct.n_rows, S_struct.n_cols}.
+        The unordered pair {d,m} giving the dimensions of op(S) must
+        be equal to the unordered pair {S_struct.n_rows, S_struct.n_cols}.
     """
     assert A_ptr.ndim == 1
     assert B_ptr.ndim == 1
