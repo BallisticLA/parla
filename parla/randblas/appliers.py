@@ -1,7 +1,7 @@
 from parla.randblas.enums import DenseDist, Side, Op, Layout, Uplo, Diag
 from parla.randblas.operators import SASO, prep_saso_sketching
 from parla.randblas.operators import SketchingBuffer, prep_dense_buff_sketching
-from parla.randblas.python_specific_helpers import write_back, to_2d_array
+from parla.randblas.helpers import write_back, to_2d_array, explicit_skop_submatrix
 import numpy as np
 
 
@@ -59,7 +59,7 @@ def lskge3(layout: Layout,
     """
     assert A_ptr.ndim == 1
     assert B_ptr.ndim == 1
-    S0_ptr = prep_dense_buff_sketching(S0)
+    S0_ptr = prep_dense_buff_sketching(S0)  # The full operator; doesn't try to generate a submatrix.
 
     # The dimensions for (A, S), rather than (op(A), op(S)).
     rows_A, cols_A = (m, n) if transA == Op.NoTrans else (n, m)
@@ -77,11 +77,10 @@ def lskge3(layout: Layout,
         assert lds >= cols_S
         assert lda >= cols_A
         assert ldb >= n
-    S_ptr = S0_ptr[vpos:]
 
     # Convert to appropriate NumPy arrays, since we can't easily access BLAS directly.
     #   This won't be needed in RandBLAS.
-    S = to_2d_array(S_ptr, rows_S, cols_S, lds, layout)
+    S = explicit_skop_submatrix(S0_ptr, vpos, rows_S, cols_S, lds, layout)
     A = to_2d_array(A_ptr, rows_A, cols_A, lda, layout)
     B = to_2d_array(B_ptr, d, n, ldb, layout)
 
@@ -149,32 +148,28 @@ def lskges(layout: Layout,
     """
     assert A_ptr.ndim == 1
     assert B_ptr.ndim == 1
-    S0_data = prep_saso_sketching(S0)
+    S0_data = prep_saso_sketching(S0)  # The full operator; doesn't try to generate a submatrix.
 
     # The dimensions for (A, S), rather than (op(A), op(S)).
     rows_A, cols_A = (m, n) if transA == Op.NoTrans else (n, m)
     rows_S, cols_S = (d, m) if transS == Op.NoTrans else (m, d)
-    assert rows_S <= S0.n_rows
-    assert cols_S <= S0.n_cols
 
     # Check that the dimensions for (A, B) are compatible with the
     # provided stride parameters (lda, ldb) we'll use for (A_ptr, B_ptr).
     if layout == Layout.ColMajor:
-        S_col_offset = vpos // S0.n_rows
-        S_row_offset = vpos % S0.n_rows
-        S = S0_data[:S_row_offset, :S_col_offset]
+        lds = S0.n_rows
+        assert lds >= rows_S
         assert lda >= rows_A
         assert ldb >= d
     else:
-        S_row_offset = vpos // S0.n_cols
-        S_col_offset = vpos % S0.n_cols
-        S = S0_data[:S_row_offset, :S_col_offset]
+        lds = S0.n_cols
+        assert lds >= cols_S
         assert lda >= cols_A
         assert ldb >= n
-    assert S.shape == (rows_S, cols_S)
 
     # Convert to appropriate NumPy arrays, since we can't easily access BLAS directly.
     #   This won't be needed in RandBLAS.
+    S = explicit_skop_submatrix(S0_data, vpos, rows_S, cols_S, lds, layout)
     A = to_2d_array(A_ptr, rows_A, cols_A, lda, layout)
     B = to_2d_array(B_ptr, d, n, ldb, layout)
 
