@@ -29,14 +29,15 @@ def indexing_bounds(A0_rows, A0_cols, vpoA, A_rows, A_cols, layout):
         col_start = vpoA % A0_cols
     row_end = row_start + A_rows
     col_end = col_start + A_cols
-    return (row_start, row_end), (col_start, col_end)
+    return (row_start, col_start), (row_end, col_end)
 
 
 def explicit_skop_submatrix(S0_data, vpos, rows_S, cols_S, lds, layout):
     # This is Python-specific.
     if S0_data.ndim == 2:
-        rows_S0, cols_S0 = S0_data.shape
-        (r0, r1), (c0, c1) = indexing_bounds(rows_S0, cols_S0, vpos, rows_S, cols_S, layout)
+        (r0, c0), (r1, c1) = indexing_bounds(S0_data.shape[0],
+                                             S0_data.shape[1],
+                                             vpos, rows_S, cols_S, layout)
         S = S0_data[r0:r1, c0:c1]
     elif S0_data.ndim == 1:
         S_data = S0_data[vpos:]
