@@ -367,9 +367,9 @@ class EVD2(EVDecomposer):
         nu = np.sqrt(n) * epsilon_mach * la.norm(Y)
         # a temporary regularization parameter
         Y = Y + nu*S
-        R = la.cholesky(S.T @ Y, lower=True)
+        R = la.cholesky(S.T @ Y, lower=False)
         # R is upper-triangular and R^T @ R = S^T @ Y = S^T @ (A + nu*I)S
-        B = (la.solve_triangular(R, Y.T, lower=True)).T
+        B = (la.solve_triangular(R, Y.T, lower=False, trans=True)).T
         # B has n rows and k + s columns
         V, sigma, Wh = la.svd(B)
         
